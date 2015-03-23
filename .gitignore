@@ -1,0 +1,9 @@
+**/target
+**/target-eclipse
+**/wrapper
+**/.settings
+**/.project
+**/.classpath
+.project
+.settings/
+smarthome.credentials
