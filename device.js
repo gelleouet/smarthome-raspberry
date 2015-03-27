@@ -48,6 +48,11 @@ DeviceServer.prototype.listen = function() {
 		deviceServer.writeDevice(mac, value);
 	});
 	
+	deviceServer.on('message', function(message) {
+		deviceServer.listenMessage(message);
+	});
+	
+	
 	// listener one-wire
 	deviceServer.listenOneWires();
 	setInterval(function() {
@@ -88,12 +93,100 @@ DeviceServer.prototype.clearDevices = function() {
 
 
 /**
+ * Référence un device sur le serveur, si le device existe déjà, rafraichit ses infos.
+ * Envoit un message si header == 'invokeAction'
+ */
+DeviceServer.prototype.listenMessage = function(message) {
+	if (!message.device || ! message.header) {
+		console.error('DeviceServer.subscribeDevice message not compatible !');
+	}
+	
+	var device = message.device
+	var existDevice = this.findDeviceByMac(device.mac);
+	
+	// on vérifie que le device n'a pas changé entre input et output
+	if (existDevice) {
+		if (existDevice.input != device.deviceType.capteur) {
+			this.removeDevice(device.mac);
+			existDevice = null;
+		}
+	}
+	
+	// si pas de device on en créée un à la volée
+	if (!existDevice) {
+		var type = null
+		
+		
+		if (device.deviceType.implClass == 'smarthome.automation.deviceType.catalogue.Temperature') {
+			//type = 'onewire'
+			// les temperatures n'ont pas besoin d'etre référencées
+		} else {
+			type = 'gpio';
+		}
+		
+		if (type) {
+			existDevice = this.newDevice(device.mac, device.deviceType.capteur, type)
+			existDevice.type = device.deviceType.libelle;
+			this.addDevice(existDevice);
+		}
+	} 
+	
+	if (existDevice) {
+		console.log('DeviceServer.subscribeDevice existDevice', existDevice.mac, existDevice.input, message.header);
+		
+		// action utilisateur sur un actionneur
+		if (message.header == 'invokeAction' && !existDevice.input) {
+			var newValue = parseInt(device.value);
+			console.log('DeviceServer.subscribeDevice invokeAction', existDevice.mac, newValue);
+			existDevice.write(newValue);
+			
+			
+			// gestion d'un timeout pour inverser la valeur
+			if (device.params && device.params.timeout) {
+				setTimeout(function() {
+					existDevice.write(newValue ? 0 : 1);
+				}, device.params.timeout);
+			}
+		// capteur : on vérifie que les valeurs envoyées et lues correspondent
+		} else if (existDevice.input) {
+			if (parseFloat(existDevice.value) != parseFloat(device.value)) {
+				this.emit('value', existDevice);
+			}
+		}
+	}
+};
+
+
+/**
+ * Supprime un device par son mac
+ */
+DeviceServer.prototype.removeDevice = function(mac) {
+	console.log('DeviceServer.removeDevice try removing on buffer size', mac, this.devices.length);
+	var device = this.findDeviceByMac(mac);
+	
+	if (device) {
+		device.free();
+		var index = this.devices.indexOf(device);
+		
+		if (index != 1) {
+			this.devices.splice(index, 1);
+		}
+	}
+	
+	console.log('DeviceServer.removeDevice new buffer size', this.devices.length);
+};
+
+
+/**
  * Ajoute un nouveau device dans le buffer
  */
 DeviceServer.prototype.addDevice = function(device) {
+	console.log('DeviceServer.addDevice new device', device.mac);
 	this.devices.push(device);
 	device.init();
+	console.log('DeviceServer.addDevice has now devices', this.devices.length);
 };
+
 
 /**
  * Envoit d'une nouvelle valeur à un device
@@ -164,7 +257,7 @@ DeviceServer.prototype.listenOneWires = function() {
 				// on ne tient pas compte du dossier master
 				if (file != 'w1_bus_master1') {
 					var device = server.newDevice(file, true, 'onewire');
-					device.type = 'temperature';
+					device.type = 'Température';
 					device.init();
 				}
 			});
@@ -227,31 +320,37 @@ util.inherits(GPIO, Device);
 
 GPIO.prototype.init = function() {
 	var device = this;
-	var direction = this.input ? 'in' : 'out';	
-	this.object = new gpio(this.mac, direction, 'both');		
-	
-	// 1ere lecture pour initialiser la bonne valeur
-	device.value = this.object.readSync();
-	
-	this.object.watch(function(err, value) {
-		if (!err) {
-			if (device.value != value) {
-				device.value = value;
-				device.server.emit('value', device);
+	if (this.input) {
+		this.object = new gpio(this.mac, 'in', 'both');	
+		
+		// 1ere lecture pour initialiser la bonne valeur
+		device.value = this.object.readSync();
+		
+		this.object.watch(function(err, value) {
+			if (!err) {
+				if (device.value != value) {
+					device.value = value;
+					device.server.emit('value', device);
+				}
+			} else {
+				console.error('GPIO.init Erreur watch gpio ' + device.mac, err);
 			}
-		} else {
-			console.error('GPIO.init Erreur watch gpio ' + device.mac, err);
-		}
-	});
-	
-	console.log("GPIO.init Start watching gpio..." + this.mac);
+		});
+		
+		console.log("GPIO.init Start watching gpio..." + this.mac);
+	} else {
+		this.object = new gpio(this.mac, 'out');	
+		console.log("GPIO.init Wait write value gpio..." + this.mac);
+	}
 };
 
 GPIO.prototype.free = function() {
 	if (this.object) {
-		this.object.unwatch();
+		if (this.input) {
+			this.object.unwatch();
+		}
 		this.object.unexport();
-		console.log("GPIO.free Unwatch gpio " + this.mac);
+		console.log("GPIO.free unexport gpio " + this.mac);
 	}
 };
 
@@ -262,9 +361,19 @@ GPIO.prototype.read = function() {
 			if (!err) {
 				device.value = value;
 			} else {
-				console.error('GPIO.read Erreur reading gpio ' + device.mac, err);
+				console.error('GPIO.read Error gpio', device.mac, err);
 			}
 		});
+	}
+};
+
+GPIO.prototype.write = function(value) {
+	console.error('GPIO.write try writing', this.mac, value);
+	this.value = value;
+	
+	if (this.object) {
+		var device = this;
+		this.object.writeSync(this.value);
 	}
 };
 
@@ -324,7 +433,7 @@ OneWire.prototype.read = function() {
 						}
 	 				}
 	 			} else {
-					console.error('OneWire.read checksum error', device.mac, buffer);
+					console.error('OneWire.read checksum error', device.mac, buffer.toString());
 				}
 	 		} else {
 	 			console.error('OneWire.read OneWire family not implemented', device.mac);

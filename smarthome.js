@@ -24,7 +24,6 @@ if (!credentialFile) {
 // On fournit un listener pour le changement des valeurs
 deviceServer.onValue = onValueDevice;
 deviceServer.listen();
-deviceServer.addDevice(deviceServer.newDevice(17, true, 'gpio'))
 
 
 // lancement du websocket avec son listener pour la gestion des messages
@@ -47,12 +46,14 @@ function onValueDevice(device) {
 			type: device.type, 
 			mac: device.mac,
 			value: device.value,
-			input: true,
 			dateValue: new Date()
 	}
 	
 	console.log("device value change", device.mac, device.value);
-	websocket.sendMessage(message);
+	
+	websocket.sendMessage(message, function onerror(error, message) {
+		
+	});
 }
 
 
@@ -63,6 +64,10 @@ function onValueDevice(device) {
  */
 function onMessageWebsocket(message) {
 	console.log("websocket message", message);
+	
+	if (message.device) {
+		deviceServer.emit('message', message);
+	}
 }
 
 

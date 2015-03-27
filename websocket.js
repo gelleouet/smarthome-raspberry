@@ -200,7 +200,7 @@ Websocket.prototype.close = function() {
  * 
  * @param message
  */
-Websocket.prototype.sendMessage = function(message) {
+Websocket.prototype.sendMessage = function(message, onerror) {
 	if (this.ws) {
 		var data = {
 				mac: this.mac,
@@ -212,11 +212,13 @@ Websocket.prototype.sendMessage = function(message) {
 		
 		this.ws.send(JSON.stringify(data), function ack(error) {
 			if (error) {
-				console.error('Websocket.sendMessage Erreur envoi', message, error);
+				onerror(error, message);
 			} else {
-				console.info('Websocket.sendMessage Envoi ok', message)
+				console.info('Websocket.sendMessage Envoi ok', message);
 			}
 		});
+	} else {
+		onerror('Websocket is not connected !', message);
 	}
 };
 
@@ -247,7 +249,7 @@ Websocket.prototype.websocket = function() {
 		this.ws.on('open', function() {
 			console.log('Websocket.websocket Channel is connected');
 			// vérifie que le channel fonctionne
-			websocket.sendMessage('Hello');
+			websocket.sendMessage({header: 'Hello'});
 		});
 		
 		this.ws.on('error', function(error) {
@@ -256,9 +258,26 @@ Websocket.prototype.websocket = function() {
 		});
 		
 		this.ws.on('message', function message(data, flags) {
-			console.log('Websocket.websocket receiving data', data, flags);
-			if (websocket.onmessage) {
-				websocket.onmessage(data);
+			console.log('Websocket.websocket receiving data...');
+			
+			// le message doit contenir dans son entete les infos de connexion.
+			// evite de repondre à des messages externes même si pas possible car websocket connecté à appli smarthome
+			var message = null
+			
+			try {
+				message = JSON.parse(data)
+			} catch (ex) {
+				console.error("Message is not a JSON data !");
+				return;
+			}
+			
+			if (message.applicationKey == websocket.applicationKey && message.username == websocket.username &&
+					message.mac == websocket.mac && message.token == websocket.token) {
+				if (websocket.onmessage && message.data) {
+					websocket.onmessage(message.data);
+				}
+			} else {
+				console.error("Authentification header error !");
 			}
 		});
 	} else {
