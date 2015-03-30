@@ -65,16 +65,19 @@ DeviceServer.prototype.listen = function() {
 
 
 /**
- * Créé une instance Device en fonction de son type
+ * Créé une instance Device en fonction de son implémentation
  */
-DeviceServer.prototype.newDevice = function(mac, input, type) {
-	if (type == 'gpio') {
-		return new GPIO(mac, input, this);
-	} else if (type == 'onewire') {
-		return new OneWire(mac, input, this);
+DeviceServer.prototype.newDevice = function(mac, input, implClass) {
+	var device;
+	
+	if (implClass == 'smarthome.automation.deviceType.catalogue.Temperature') {
+		device = new OneWire(mac, input, this);
 	} else {
-		throw new Error('Type ' + type + ' not recognized !');
+		device =  new GPIO(mac, input, this);
 	}
+	
+	device.implClass = implClass;
+	return device;
 };
 
 
@@ -114,44 +117,21 @@ DeviceServer.prototype.listenMessage = function(message) {
 	
 	// si pas de device on en créée un à la volée
 	if (!existDevice) {
-		var type = null
-		
-		
-		if (device.deviceType.implClass == 'smarthome.automation.deviceType.catalogue.Temperature') {
-			//type = 'onewire'
-			// les temperatures n'ont pas besoin d'etre référencées
-		} else {
-			type = 'gpio';
-		}
-		
-		if (type) {
-			existDevice = this.newDevice(device.mac, device.deviceType.capteur, type)
-			existDevice.type = device.deviceType.libelle;
+		// pas besoin pour les températures car process à part pour les détecter
+		if (device.deviceType.implClass != 'smarthome.automation.deviceType.catalogue.Temperature') {
+			existDevice = this.newDevice(device.mac, device.deviceType.capteur, device.deviceType.implClass)
+			existDevice.params = device.params;
+			existDevice.value = parseFloat(device.value);
 			this.addDevice(existDevice);
 		}
 	} 
 	
 	if (existDevice) {
-		console.log('DeviceServer.subscribeDevice existDevice', existDevice.mac, existDevice.input, message.header);
-		
 		// action utilisateur sur un actionneur
 		if (message.header == 'invokeAction' && !existDevice.input) {
 			var newValue = parseInt(device.value);
 			console.log('DeviceServer.subscribeDevice invokeAction', existDevice.mac, newValue);
 			existDevice.write(newValue);
-			
-			
-			// gestion d'un timeout pour inverser la valeur
-			if (device.params && device.params.timeout) {
-				setTimeout(function() {
-					existDevice.write(newValue ? 0 : 1);
-				}, device.params.timeout);
-			}
-		// capteur : on vérifie que les valeurs envoyées et lues correspondent
-		} else if (existDevice.input) {
-			if (parseFloat(existDevice.value) != parseFloat(device.value)) {
-				this.emit('value', existDevice);
-			}
 		}
 	}
 };
@@ -256,8 +236,7 @@ DeviceServer.prototype.listenOneWires = function() {
 			files.forEach(function(file) {
 				// on ne tient pas compte du dossier master
 				if (file != 'w1_bus_master1') {
-					var device = server.newDevice(file, true, 'onewire');
-					device.type = 'Température';
+					var device = server.newDevice(file, true, 'smarthome.automation.deviceType.catalogue.Temperature');
 					device.init();
 				}
 			});
@@ -272,7 +251,8 @@ var Device = function(mac, input, server) {
 	this.input = input;
 	this.value = null;
 	this.server = server;
-	this.type = null;
+	this.params = null;
+	this.implClass = null;
 };
 
 Device.prototype.log = function() {
@@ -319,12 +299,21 @@ var GPIO = function(mac, input, server) {
 util.inherits(GPIO, Device);
 
 GPIO.prototype.init = function() {
+	console.log("GPIO.init gpio init value...", this.mac, this.value);
 	var device = this;
+	var initValue = this.value;
+	
 	if (this.input) {
-		this.object = new gpio(this.mac, 'in', 'both');	
+		this.object = new gpio(this.mac.replace('gpio', ''), 'in', 'both');	
 		
 		// 1ere lecture pour initialiser la bonne valeur
 		device.value = this.object.readSync();
+		console.log("GPIO.init gpio first read...", device.mac, device.value);
+		// on informe le serveur si ecart avec valeur initiale
+		if (initValue != device.value) {
+			console.log("GPIO.init detect init value change...", this.mac, this.value, initValue);
+			device.server.emit('value', device);
+		}
 		
 		this.object.watch(function(err, value) {
 			if (!err) {
@@ -339,7 +328,12 @@ GPIO.prototype.init = function() {
 		
 		console.log("GPIO.init Start watching gpio..." + this.mac);
 	} else {
-		this.object = new gpio(this.mac, 'out');	
+		this.object = new gpio(this.mac.replace('gpio', ''), 'out');	
+		//si une valeur est passée, on init le device avec la bonne valeur
+		// sauf si device avec timeout sur le write
+		if (device.value && !device.params.timeout) {
+			this.write(device.value);
+		}
 		console.log("GPIO.init Wait write value gpio..." + this.mac);
 	}
 };
@@ -369,11 +363,22 @@ GPIO.prototype.read = function() {
 
 GPIO.prototype.write = function(value) {
 	console.error('GPIO.write try writing', this.mac, value);
-	this.value = value;
 	
-	if (this.object) {
+	if (this.object && !this.input) {
+		this.value = value;
 		var device = this;
-		this.object.writeSync(this.value);
+		this.object.writeSync(value);
+		
+		// gestion d'un timeout pour inverser la valeur sur les valeurs non nulles
+		// on renvoit la valeur au serveur
+		// ATTENTION : bien garder le test "value" sinon boucle sans fin 
+		if (device.params && device.params.timeout && value) {
+			console.error('GPIO.write trigger timeout for inversing value', device.mac, value);
+			
+			setTimeout(function() {
+				device.write(0);
+			}, device.params.timeout);
+		}
 	}
 };
 

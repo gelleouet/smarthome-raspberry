@@ -41,12 +41,15 @@ process.on('SIGINT', exit);
  * @param device
  */
 function onValueDevice(device) {
+	var now = new Date();
+	
 	var message = {
 			header: 'deviceValue',
-			type: device.type, 
+			implClass: device.implClass, 
 			mac: device.mac,
 			value: device.value,
-			dateValue: new Date()
+			dateValue: now,
+			timezoneOffset: now.getTimezoneOffset()
 	}
 	
 	console.log("device value change", device.mac, device.value);

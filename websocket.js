@@ -210,7 +210,9 @@ Websocket.prototype.sendMessage = function(message, onerror) {
 				data: message
 		};
 		
-		this.ws.send(JSON.stringify(data), function ack(error) {
+		var jsonData = JSON.stringify(data);
+		
+		this.ws.send(jsonData, function ack(error) {
 			if (error) {
 				onerror(error, message);
 			} else {
