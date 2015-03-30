@@ -33,6 +33,7 @@ websocket.subscribe();
 
 // gestionnaire fin application
 process.on('SIGINT', exit);
+process.on('SIGTERM', exit);
 
 
 /**
