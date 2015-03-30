@@ -101,15 +101,22 @@ DeviceServer.prototype.clearDevices = function() {
  */
 DeviceServer.prototype.listenMessage = function(message) {
 	if (!message.device || ! message.header) {
-		console.error('DeviceServer.subscribeDevice message not compatible !');
+		console.error('DeviceServer.listenMessage message not compatible !');
 	}
+	
+	console.log('DeviceServer.listenMessage parsing message', message.header);
 	
 	var device = message.device
 	var existDevice = this.findDeviceByMac(device.mac);
 	
 	// on vérifie que le device n'a pas changé entre input et output
 	if (existDevice) {
-		if (existDevice.input != device.deviceType.capteur) {
+		if (message.header == 'delete') {
+			console.log('DeviceServer.listenMessage remove device', device.mac);
+			this.removeDevice(device.mac);
+			return;
+		} else if (existDevice.input != device.deviceType.capteur) {
+			console.log('DeviceServer.listenMessage device already exist but change', device.mac);
 			this.removeDevice(device.mac);
 			existDevice = null;
 		}
@@ -119,6 +126,7 @@ DeviceServer.prototype.listenMessage = function(message) {
 	if (!existDevice) {
 		// pas besoin pour les températures car process à part pour les détecter
 		if (device.deviceType.implClass != 'smarthome.automation.deviceType.catalogue.Temperature') {
+			console.log('DeviceServer.listenMessage create new device', device.mac);
 			existDevice = this.newDevice(device.mac, device.deviceType.capteur, device.deviceType.implClass)
 			existDevice.params = device.params;
 			existDevice.value = parseFloat(device.value);
@@ -130,7 +138,7 @@ DeviceServer.prototype.listenMessage = function(message) {
 		// action utilisateur sur un actionneur
 		if (message.header == 'invokeAction' && !existDevice.input) {
 			var newValue = parseInt(device.value);
-			console.log('DeviceServer.subscribeDevice invokeAction', existDevice.mac, newValue);
+			console.log('DeviceServer.listenMessage invokeAction', existDevice.mac, newValue);
 			existDevice.write(newValue);
 		}
 	}
@@ -145,12 +153,16 @@ DeviceServer.prototype.removeDevice = function(mac) {
 	var device = this.findDeviceByMac(mac);
 	
 	if (device) {
-		device.free();
 		var index = this.devices.indexOf(device);
 		
-		if (index != 1) {
+		if (index != -1) {
+			device.free();
 			this.devices.splice(index, 1);
+		} else {
+			console.error('DeviceServer.removeDevice index not find ', mac);
 		}
+	} else {
+		console.error('DeviceServer.removeDevice not find', mac);
 	}
 	
 	console.log('DeviceServer.removeDevice new buffer size', this.devices.length);
@@ -299,7 +311,7 @@ var GPIO = function(mac, input, server) {
 util.inherits(GPIO, Device);
 
 GPIO.prototype.init = function() {
-	console.log("GPIO.init gpio init value...", this.mac, this.value);
+	console.log("GPIO.init init value...", this.mac, this.value);
 	var device = this;
 	var initValue = this.value;
 	
@@ -322,11 +334,11 @@ GPIO.prototype.init = function() {
 					device.server.emit('value', device);
 				}
 			} else {
-				console.error('GPIO.init Erreur watch gpio ' + device.mac, err);
+				console.error('GPIO.init Erreur watch', device.mac, err);
 			}
 		});
 		
-		console.log("GPIO.init Start watching gpio..." + this.mac);
+		console.log("GPIO.init Start watching...", this.mac);
 	} else {
 		this.object = new gpio(this.mac.replace('gpio', ''), 'out');	
 		//si une valeur est passée, on init le device avec la bonne valeur
@@ -334,7 +346,7 @@ GPIO.prototype.init = function() {
 		if (device.value && !device.params.timeout) {
 			this.write(device.value);
 		}
-		console.log("GPIO.init Wait write value gpio..." + this.mac);
+		console.log("GPIO.init Wait write value...", this.mac);
 	}
 };
 
@@ -344,7 +356,7 @@ GPIO.prototype.free = function() {
 			this.object.unwatch();
 		}
 		this.object.unexport();
-		console.log("GPIO.free unexport gpio " + this.mac);
+		console.log("GPIO.free unexport", this.mac);
 	}
 };
 
