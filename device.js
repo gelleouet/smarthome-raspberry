@@ -85,6 +85,7 @@ DeviceServer.prototype.newDevice = function(mac, input, implClass) {
  * Efface le buffer de devices
  */
 DeviceServer.prototype.clearDevices = function() {
+	console.info('DeviceServer.clearDevices');
 	if (this.devices) {
 		for (var i=0; i<this.devices.length; i++) {
 			this.devices[i].free();

@@ -1,24 +1,12 @@
 var deviceServer = require('./device').newInstance();
 var offline = require('./offline').newInstance();
 var websocket = require('./websocket').newInstance();
+var fs = require('fs');
 
 
-var credentialFile = null;
-
-// Scanne des arguments de la ligne de commande
-process.argv.forEach(function(val, index, array) {
-	if (val == '--credential') {
-		credentialFile = array[index + 1];
-		console.info('SmartHome.argv find --credential parameter : ', credentialFile);
-	}
-});
-
-
-if (!credentialFile) {
-	console.error('--credential parameter is mandatory !');
-	process.exit(1);
-}
-
+console.log("-------------------------------------------------");
+console.log("Smarthome.start from dir", __dirname, new Date());
+console.log("-------------------------------------------------");
 
 // Démarre le serveur pour la lecture des devices
 // On fournit un listener pour le changement des valeurs
@@ -27,9 +15,8 @@ deviceServer.listen();
 
 
 // lancement du websocket avec son listener pour la gestion des messages
-websocket.credentialFile = credentialFile;
 websocket.onmessage = onMessageWebsocket;
-websocket.subscribe();
+websocket.listen();
 
 // gestionnaire fin application
 process.on('SIGINT', exit);
@@ -53,9 +40,9 @@ function onValueDevice(device) {
 			timezoneOffset: now.getTimezoneOffset()
 	}
 	
-	console.log("device value change", device.mac, device.value);
+	console.log("Smarthome.onValueDevice", device.mac, device.value);
 	
-	websocket.sendMessage(message, function onerror(error, message) {
+	websocket.sendMessage(message, function (error, message) {
 		
 	});
 }
@@ -67,7 +54,7 @@ function onValueDevice(device) {
  * @param message
  */
 function onMessageWebsocket(message) {
-	console.log("websocket message", message);
+	console.log("Smarthome.onMessageWebsocket", message);
 	
 	if (message.device) {
 		deviceServer.emit('message', message);
@@ -79,7 +66,8 @@ function onMessageWebsocket(message) {
  * Quitte proprement l'application en libérant les ressources
  */
 function exit() {
-  deviceServer.clearDevices();
-  websocket.close();
-  process.exit();
+	console.log("Smarthome.exit", new Date());
+	deviceServer.clearDevices();
+	websocket.close();
+	process.exit();
 }

@@ -8,6 +8,8 @@ var fs = require('fs');
 var os = require('os');
 var WsWebSocket = require('ws');
 var uuid = require('node-uuid');
+require('ssl-root-cas/latest')
+	.inject();
 
 
 var SUBSCRIBE_TIMEOUT = 60000 * 1; // toutes les 1 minutes
@@ -25,7 +27,6 @@ var Websocket = function() {
 	this.ws = null;
 	this.onmessage = null;
 	this.agentModel = null;
-	this.credentialFile = null;
 	
 	var network = os.networkInterfaces();
 	console.log('Websocket.<init> network interface', network);
@@ -39,10 +40,6 @@ var Websocket = function() {
 		websocket.subscribe();
 	});
 
-	websocket.on('delaysubscribe', function() {
-		websocket.delaySubscribe();
-	});
-	
 	websocket.on('websocket', function() {
 		websocket.websocket();
 	});
@@ -53,6 +50,25 @@ var Websocket = function() {
 };
 
 util.inherits(Websocket, events.EventEmitter);
+
+
+/**
+ * Point d'entrée pour le websocket
+ * Démarre un callback pour vérifier l'état du websocket
+ * si fermé relance une souscription et une connexion au websocket
+ */
+Websocket.prototype.listen = function() {
+	var websocket = this;
+	
+	websocket.emit('subscribe');
+	
+	setInterval(function() {
+		if (!websocket.ws || websocket.ws == WsWebSocket.CLOSED) {
+			console.log('Websocket.listen detect closed channel. try reconnecting...');
+			websocket.emit('subscribe');
+		}
+	}, SUBSCRIBE_TIMEOUT);
+}
 
 
 /**
@@ -77,7 +93,7 @@ Websocket.prototype.subscribe = function() {
 			}
 		};
 		
-		console.log("Websocket.subscribe url options", options);
+		console.log("Websocket.subscribe url options", options.url, options.formData);
 		
 		function subscribeCallBack(error, response, body) {
 			if (response && response.statusCode == 200) {
@@ -106,31 +122,13 @@ Websocket.prototype.subscribe = function() {
 			
 			// arrivé là y'a eu une erreur plus haut
 			console.error('Websocket.subscribe request error. Try reconnecting...', error, body);
-			
-			// on relance une tentative sinon le programme s'arrête
-			websocket.emit('delaysubscribe');
 		};
 		
 		request(options, subscribeCallBack);
 	} else {
 		console.info('Websocket.subscribe credentiel incomplet. Try reconnecting...', SUBSCRIBE_TIMEOUT);
-		websocket.emit('delaysubscribe');
 	}
 };
-
-
-/**
- * Lance la procédure de subscription mais après un délai d'attente
- */
-Websocket.prototype.delaySubscribe = function() {
-	var websocket = this;
-	
-	// les credentials sont incomplets, il faur retenter plus tard
-	// on relance une tentative sinon le programme s'arrête
-	setTimeout(function() {
-		websocket.subscribe();
-	}, SUBSCRIBE_TIMEOUT);
-}
 
 
 /**
@@ -140,16 +138,11 @@ Websocket.prototype.delaySubscribe = function() {
  * @return true si les infos obligatoires sont présentes
  */
 Websocket.prototype.credential = function() {
-	if (!this.credentialFile) {
-		console.error("Websocket.credential filename is mandatory !");
-		return false;
-	}
-	
-	console.log("Websocket.credential reading file...", this.credentialFile);
+	console.log("Websocket.credential reading file...");
 	var buffer = null;
 	
 	try {
-		buffer = fs.readFileSync(this.credentialFile);
+		buffer = fs.readFileSync(__dirname + '/smarthome.credentials');
 	} catch (ex) {
 		console.error('Websocket.credential Error reading file', ex);
 		return false;
@@ -163,7 +156,11 @@ Websocket.prototype.credential = function() {
 			this.applicationKey = credentials.applicationKey;
 			this.applicationHost = credentials.applicationHost;
 			this.agentModel = credentials.agentModel;
-			this.mac = credentials.mac; // pas d'info mac sur nodejs v0.10. donc il faut le rajouter dans les credentials
+			// pas d'info mac sur nodejs v0.10. donc il faut le rajouter dans les credentials
+			if (!this.mac) {
+				console.log('No mac from os.networkInterfaces(). Try get it from credential...');
+				this.mac = credentials.mac; 
+			}
 			
 			if (!this.mac) {
 				throw new Exception("Mac must be specified in credential file !");
@@ -185,11 +182,11 @@ Websocket.prototype.credential = function() {
  * Libère les réssources et ferme le websocket
  */
 Websocket.prototype.close = function() {
+	console.info('Websocket.close channel');
 	if (this.ws) {
 		this.ws.close();
 		this.ws = null;
 	}
-	this.emit('delaysubscribe');
 };
 
 
@@ -214,13 +211,20 @@ Websocket.prototype.sendMessage = function(message, onerror) {
 		
 		this.ws.send(jsonData, function ack(error) {
 			if (error) {
-				onerror(error, message);
+				console.error('Websocket.sendMessage error', error);
+				if (onerror) {
+					onerror(error, message);
+				}
 			} else {
 				console.info('Websocket.sendMessage Envoi ok', message);
 			}
 		});
 	} else {
-		onerror('Websocket is not connected !', message);
+		console.error('Websocket.sendMessage not connected !');
+		
+		if (onerror) {
+			onerror('Websocket is not connected !', message);
+		}
 	}
 };
 
