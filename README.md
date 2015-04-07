@@ -1,6 +1,6 @@
 ## smarthome-raspberry
 
-Un agent en Node.JS pour se connecter à l'application domotique smarthome.  
+Un agent en Node.JS pour se connecter à l'application domotique [smarthome](https://www.jdevops.com/smarthome).  
 
 Prend en charge :
 * Le bus 1-Wire : permet de connecter des sondes  de température 1-Wire (Dallas)
@@ -9,4 +9,4 @@ Prend en charge :
 
 ### Fonctionnement
 
-L'agent se connecte après une phase d'authentification à un websocket sur l'application smarthome. Ce websocket permet de recevoir ou d'envoyer en temps réel les infos au serveur domotique.
+L'agent se connecte après une phase d'authentification à un websocket sur l'application [smarthome](https://www.jdevops.com/smarthome). Ce websocket permet de recevoir ou d'envoyer en temps réel les infos au serveur domotique.
