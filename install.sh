@@ -1,12 +1,13 @@
 #!/bin/bash
+
+# Dossier application user
 cd /opt
 
+# Version plus à jour compilée ARM
+wget http://node-arm.herokuapp.com/node_latest_armhf.deb
+sudo dpkg -i node_latest_armhf.deb
 
-wget http://nodejs.org/dist/v0.10.9/node-v0.10.9-linux-arm-pi.tar.gz
-tar -xzvf node-v0.10.9-linux-arm-pi.tar.gz
-mv node-v0.10.9-linux-arm-pi node-v0.10.9
-sudo ln -s /opt/node-v0.10.9/bin/* /usr/local/sbin/
-rm node-v0.10.9-linux-arm-pi.tar.gz
+# Installation des modules NodeJS
 npm install epoll
 npm install onoff
 npm install ws
@@ -25,11 +26,9 @@ echo "{ \"username\" : \"\",
   \"mac\": \"\"
 }" > smarthome.credentials
 
+# Démarrage auto au reboot du PI
 sudo chmod +x smarthome
 sudo cp smarthome /etc/init.d/
 sudo update-rc.d smarthome defaults
 
 
-# Version plus à jour compilée ARM
-wget http://node-arm.herokuapp.com/node_latest_armhf.deb
-sudo dpkg -i node_latest_armhf.deb

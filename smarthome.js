@@ -37,6 +37,7 @@ function onValueDevice(device) {
 			mac: device.mac,
 			value: device.value,
 			dateValue: now,
+			metavalues: device.metavalues,
 			timezoneOffset: now.getTimezoneOffset()
 	}
 	

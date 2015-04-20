@@ -5,10 +5,13 @@ var util = require('util');
 var events = require('events');
 var gpio = require('onoff').Gpio;
 var fs = require('fs');
+var serialport = require("serialport");
 
 var ONEWIREPATH = '/sys/bus/w1/devices/';
 var ONEWIREDELAY = 60000 * 5;	// toutes les 5 minutes
 var ONEWIREFAMILYTEMPERATURE = '28';
+var TELEINFO_PORT = "/dev/ttyAMA0";
+var TELEINFO_DELAY = 60000 * 5;	// toutes les 5 minutes
 
 // /etc/modprobe.d/
 // Vous écrivez à l’intérieur « options wire max_slave_count=20″
@@ -59,6 +62,12 @@ DeviceServer.prototype.listen = function() {
 		deviceServer.listenOneWires();		
 	}, ONEWIREDELAY);
 	
+	// listener téléinfo
+	deviceServer.listenTeleInfo();
+	setInterval(function() {
+		deviceServer.listenTeleInfo();		
+	}, TELEINFO_DELAY);
+	
 	console.log('DeviceServer.startServer Start listening...');
 	return deviceServer;
 }
@@ -72,6 +81,8 @@ DeviceServer.prototype.newDevice = function(mac, input, implClass) {
 	
 	if (implClass == 'smarthome.automation.deviceType.catalogue.Temperature') {
 		device = new OneWire(mac, input, this);
+	} else if (implClass == 'smarthome.automation.deviceType.catalogue.TeleInformation') {
+		device = new TeleInfo(mac, input, this);
 	} else {
 		device =  new GPIO(mac, input, this);
 	}
@@ -125,8 +136,9 @@ DeviceServer.prototype.listenMessage = function(message) {
 	
 	// si pas de device on en créée un à la volée
 	if (!existDevice) {
-		// pas besoin pour les températures car process à part pour les détecter
-		if (device.deviceType.implClass != 'smarthome.automation.deviceType.catalogue.Temperature') {
+		// TODO : ajouter un flag autoScan pour éviter de multiplier les tests
+		if (device.deviceType.implClass != 'smarthome.automation.deviceType.catalogue.Temperature' && 
+				device.deviceType.implClass != 'smarthome.automation.deviceType.catalogue.TeleInformation') {
 			console.log('DeviceServer.listenMessage create new device', device.mac);
 			existDevice = this.newDevice(device.mac, device.deviceType.capteur, device.deviceType.implClass)
 			existDevice.params = device.params;
@@ -258,6 +270,21 @@ DeviceServer.prototype.listenOneWires = function() {
 }; 
 
 
+/**
+ * Déclenche la lecture du téléinfo
+ * 
+ * @param processListener
+ */
+DeviceServer.prototype.listenTeleInfo = function() {
+	var server = this;
+	console.log('DeviceServer.listenTeleInfo');
+	// pour le mac, on ne le connait pas à l'avance
+	var device = server.newDevice(null, true, 'smarthome.automation.deviceType.catalogue.TeleInformation');
+	device.serialFile = TELEINFO_PORT;
+	device.init();
+}
+
+
 var Device = function(mac, input, server) {
 	this.object = null;
 	this.mac = mac;	
@@ -266,6 +293,7 @@ var Device = function(mac, input, server) {
 	this.server = server;
 	this.params = null;
 	this.implClass = null;
+	this.metavalues = null;
 };
 
 Device.prototype.log = function() {
@@ -463,6 +491,109 @@ OneWire.prototype.read = function() {
 };
 
 OneWire.prototype.isHorsConnexion = function(value) {
+	return true;
+};
+
+
+/**
+ * Implémentation TeleInfo
+ * Hérite de Device
+ */
+
+var TeleInfo = function(mac, input, server) {
+	Device.call(this, mac, input, server);
+	this.serialFile = null;
+	this.serialDevice = null;
+	this.sendFlag = false; // un seul envoi par read
+	this.nbRead = 0; // sécurité pour ne pas rester lire pendant des heures
+	
+	this.metavalues = {
+		opttarif: null,
+		ptec: null,
+		isousc: null,
+		imax: null,
+		hchp: null,
+		hchc: null,
+		papp: null,
+	};
+};
+
+util.inherits(TeleInfo, Device);
+
+TeleInfo.prototype.init = function() {
+	if (this.serialFile) {
+		console.log("TeleInfo.init...");
+		this.read();
+	} else {
+		console.error('TeleInfo.init serialFile is empty !');
+	}
+};
+
+TeleInfo.prototype.isComplete = function() {
+	return this.mac && this.value && this.metavalues.opttarif && this.metavalues.ptec &&
+		this.metavalues.isousc && this.metavalues.imax && this.metavalues.hchp &&
+		this.metavalues.hchc && this.metavalues.papp;
+};
+
+TeleInfo.prototype.free = function() {
+	console.log("TeleInfo.free");
+	if (this.serialDevice) {
+		this.serialDevice.close();
+	}
+};
+
+TeleInfo.prototype.read = function() {	
+	var device = this;
+	this.serialDevice = new serialport.SerialPort(this.serialFile, {
+		baudrate: 1200,
+		dataBits: 7,
+		parity: 'even',
+		stopBits: 1,
+		// Caractères séparateurs = fin de trame + début de trame
+		parser: serialport.parsers.readline('\n')
+	});
+	
+	var self = this.serialDevice;
+	
+	this.serialDevice.on('open', function() {
+		self.on('data', function(data) {
+			// lecture des trames
+			var tokens = data.split(" ");
+			
+			if (tokens[0] == "ADCO") {
+				device.mac = tokens[1];
+			} else if (tokens[0] == "OPTARIF") {
+				device.metavalues.opttarif = tokens[1];
+			} else if (tokens[0] == "ISOUSC") {
+				device.metavalues.isousc = tokens[1];
+			} else if (tokens[0] == "HCHC") {
+				device.metavalues.hchc = tokens[1];
+			} else if (tokens[0] == "HCHP") {
+				device.metavalues.hchp = tokens[1];
+			} else if (tokens[0] == "PTEC") {
+				device.metavalues.ptec = tokens[1];
+			} else if (tokens[0] == "IINST") {
+				device.value = tokens[1];
+			} else if (tokens[0] == "IMAX") {
+				device.metavalues.imax = tokens[1];
+			} else if (tokens[0] == "PAPP") {
+				device.metavalues.papp = tokens[1];
+			}
+			
+			device.nbRead++;
+			
+			if (device.isComplete() && !device.sendFlag) {
+				device.server.emit('value', device);
+				device.sendFlag = true;
+				device.free();
+			} else if (device.nbRead > 20) {
+				device.free();
+			}
+		});
+	});
+};
+
+TeleInfo.prototype.isHorsConnexion = function(value) {
 	return true;
 };
 
