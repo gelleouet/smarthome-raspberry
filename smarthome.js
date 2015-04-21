@@ -13,7 +13,6 @@ console.log("-------------------------------------------------");
 deviceServer.onValue = onValueDevice;
 deviceServer.listen();
 
-
 // lancement du websocket avec son listener pour la gestion des messages
 websocket.onmessage = onMessageWebsocket;
 websocket.listen();

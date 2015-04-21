@@ -14,7 +14,8 @@ npm install ws
 npm install node-uuid
 #npm install request@2.45.0
 npm install request
-#npm install ssl-root-cas
+npm install ssl-root-cas
+npm install serialport@1.4.9
 
 
 cd /opt/smarthome
