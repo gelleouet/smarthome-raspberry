@@ -355,7 +355,7 @@ GPIO.prototype.init = function() {
 	var initValue = this.value;
 	
 	if (this.input) {
-		this.object = new gpio(this.mac.replace('gpio', ''), 'in', 'both');	
+		this.object = new gpio(this.mac.replace('gpio', ''), 'in', 'both');
 		
 		// 1ere lecture pour initialiser la bonne valeur
 		device.value = this.object.readSync();
@@ -559,7 +559,10 @@ TeleInfo.prototype.init = function() {
 TeleInfo.prototype.free = function() {
 	console.log("TeleInfo.free");
 	if (this.serialDevice) {
-		this.serialDevice.close();
+		try {
+			this.serialDevice.close();
+		} catch (exception) {}
+		this.serialDevice = null;
 	}
 };
 
