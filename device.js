@@ -10,6 +10,7 @@ var serialport = require("serialport");
 var ONEWIREPATH = '/sys/bus/w1/devices/';
 var ONEWIREFAMILYTEMPERATURE = '28';
 var TELEINFO_PORT = "/dev/ttyAMA0";
+var TELEINFO_MAXREAD = 30;
 var DEFAULT_FREQUENCY = 60000 * 5;	// toutes les 5 minutes
 
 // /etc/modprobe.d/
@@ -529,6 +530,7 @@ var TeleInfo = function(mac, input, server) {
 	this.serialFile = null;
 	this.serialDevice = null;
 	this.adco = false; // lecture de la 1ere trame
+	this.nbRead = 0; // sécurité pour pas rester lire le buffer si y'a rien dedans
 	this.metavalues = {
 		opttarif: null,
 		ptec: null,
@@ -547,6 +549,7 @@ util.inherits(TeleInfo, Device);
 TeleInfo.prototype.init = function() {
 	if (this.serialFile) {
 		console.log("TeleInfo.init...");
+		this.free();
 		this.read();
 	} else {
 		console.error('TeleInfo.init serialFile is empty !');
@@ -563,6 +566,7 @@ TeleInfo.prototype.free = function() {
 TeleInfo.prototype.read = function() {	
 	var device = this;
 	this.adco = false;
+	this.nbRead = 0;
 	
 	this.serialDevice = new serialport.SerialPort(this.serialFile, {
 		baudrate: 1200,
@@ -620,6 +624,10 @@ TeleInfo.prototype.read = function() {
 						device.free();
 					}
 				}
+			}
+			
+			if (device.nbRead++ > TELEINFO_MAXREAD) {
+				device.free();
 			}
 		});
 	});
