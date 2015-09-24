@@ -8,9 +8,23 @@ console.log("-------------------------------------------------");
 console.log("Smarthome.start from dir", __dirname, new Date());
 console.log("-------------------------------------------------");
 
-// Démarre le serveur pour la lecture des devices
+
 // On fournit un listener pour le changement des valeurs
 deviceServer.onValue = onValueDevice;
+
+// préconfiguration des pins :
+// de cette manière, les pins en input vont automatiquement s'enregistrer sur le serveur avec les bons names
+// l'utilisateur n'aura pas besoin de le faire manuellement
+deviceServer.addDevice(deviceServer.newDevice('gpio4', true, 'smarthome.automation.deviceType.catalogue.ContactSec'));
+deviceServer.addDevice(deviceServer.newDevice('gpio17', true, 'smarthome.automation.deviceType.catalogue.ContactSec'));
+deviceServer.addDevice(deviceServer.newDevice('gpio22', true, 'smarthome.automation.deviceType.catalogue.ContactSec'));
+deviceServer.addDevice(deviceServer.newDevice('gpio18', true, 'smarthome.automation.deviceType.catalogue.ContactSec'));
+deviceServer.addDevice(deviceServer.newDevice('gpio23', true, 'smarthome.automation.deviceType.catalogue.ContactSec'));
+deviceServer.addDevice(deviceServer.newDevice('gpio24', true, 'smarthome.automation.deviceType.catalogue.ContactSec'));
+deviceServer.addDevice(deviceServer.newDevice('gpio25', true, 'smarthome.automation.deviceType.catalogue.ContactSec'));
+
+
+//Démarre le serveur pour la lecture des devices
 deviceServer.listen();
 
 // lancement du websocket avec son listener pour la gestion des messages

@@ -27,13 +27,6 @@ var Websocket = function() {
 	this.ws = null;
 	this.onmessage = null;
 	this.agentModel = null;
-	
-	var network = os.networkInterfaces();
-	console.log('Websocket.<init> network interface', network);
-	this.mac = network.eth0[0].mac;
-	// pas d'info mac sur nodejs v0.10. donc il faut le rajouter dans les credentials
-	this.address = network.eth0[0].address;
-	
 	var websocket = this;
 	
 	websocket.on('subscribe', function() {
@@ -126,7 +119,7 @@ Websocket.prototype.subscribe = function() {
 		
 		request(options, subscribeCallBack);
 	} else {
-		console.info('Websocket.subscribe credentiel incomplet. Try reconnecting...', SUBSCRIBE_TIMEOUT);
+		console.info('Websocket.subscribe credential incomplet. Try reconnecting...', SUBSCRIBE_TIMEOUT);
 	}
 };
 
@@ -156,17 +149,27 @@ Websocket.prototype.credential = function() {
 			this.applicationKey = credentials.applicationKey;
 			this.applicationHost = credentials.applicationHost;
 			this.agentModel = credentials.agentModel;
-			// pas d'info mac sur nodejs v0.10. donc il faut le rajouter dans les credentials
-			if (!this.mac) {
-				console.log('No mac from os.networkInterfaces(). Try get it from credential...');
-				this.mac = credentials.mac; 
-			}
 			
-			if (!this.mac) {
-				throw new Exception("Mac must be specified in credential file !");
-			}
+			var network = os.networkInterfaces();
+			console.log('Websocket.<init> network interface', network);
 			
-			return this.username && this.applicationKey && this.applicationHost && this.mac;
+			if (network.eth0) {
+				this.mac = network.eth0[0].mac;
+				this.address = network.eth0[0].address;
+				// pas d'info mac sur nodejs v0.10. donc il faut le rajouter dans les credentials
+				if (!this.mac) {
+					console.log('No mac from os.networkInterfaces(). Try get it from credential...');
+					this.mac = credentials.mac; 
+				}
+				
+				if (!this.mac) {
+					throw new Exception("Mac must be specified in credential file !");
+				}
+				
+				return this.username && this.applicationKey && this.applicationHost && this.mac;
+			} else {
+				console.error('Websocket.credential No ethernet interface');
+			}
 		} else {
 			console.error('Websocket.credential Error format JSON');
 		}

@@ -6,12 +6,35 @@ var events = require('events');
 var gpio = require('onoff').Gpio;
 var fs = require('fs');
 var serialport = require("serialport");
+var pigpio = require("pi-gpio");
 
 var ONEWIREPATH = '/sys/bus/w1/devices/';
 var ONEWIREFAMILYTEMPERATURE = '28';
 var TELEINFO_PORT = "/dev/ttyAMA0";
 var TELEINFO_MAXREAD = 30;
 var DEFAULT_FREQUENCY = 60000 * 5;	// toutes les 5 minutes
+var ARDUINO_PORT = "/dev/ttyACM0";
+var ARDUINO_FREQUENCY = 60000; // toutes les minutes
+
+var MAPGPIO = {
+	'gpio2': 3,
+	'gpio3': 5,
+	'gpio4': 7,
+	'gpio17': 11,
+	'gpio27': 13,
+	'gpio22': 15,
+	'gpio10': 19,
+	'gpio9': 21,
+	'gpio11': 23,
+	'gpio14': 8,
+	'gpio15': 10,
+	'gpio18': 12,
+	'gpio23': 16,
+	'gpio24': 18,
+	'gpio25': 22,
+	'gpio8': 24,
+	'gpio7': 26,
+}
 
 // /etc/modprobe.d/
 // Vous écrivez à l’intérieur « options wire max_slave_count=20″
@@ -25,6 +48,7 @@ var DeviceServer = function() {
 	this.onValue = null;
 	this.teleinfo = this.newDevice(null, true, 'smarthome.automation.deviceType.catalogue.TeleInformation');
 	this.teleinfo.serialFile = TELEINFO_PORT;
+	this.arduino = null;
 };
 
 util.inherits(DeviceServer, events.EventEmitter);
@@ -60,8 +84,13 @@ DeviceServer.prototype.listen = function() {
 	deviceServer.on('onewire', function(message) {
 		deviceServer.listenOneWires();	
 	});
+	
 	deviceServer.on('teleinfo', function(message) {
 		deviceServer.teleinfo.init();	
+	});
+	
+	deviceServer.on('arduino', function(device) {
+		deviceServer.sendToArduino(device);
 	});
 	
 	// Timer pour les devices auto-scan
@@ -70,6 +99,12 @@ DeviceServer.prototype.listen = function() {
 		deviceServer.listenAutoScan();
 	}, DEFAULT_FREQUENCY);
 
+	// connexion bidirectionnelle avec arduino avec un timer pour relancer les connexion perdues
+	deviceServer.listenArduino();
+	setInterval(function() {
+		deviceServer.listenArduino();
+	}, ARDUINO_FREQUENCY);
+	
 	console.log('DeviceServer.startServer Start listening...');
 	return deviceServer;
 }
@@ -82,6 +117,91 @@ DeviceServer.prototype.listenAutoScan = function() {
 	this.emit('onewire');
 	this.emit('teleinfo');
 }
+
+
+/**
+ * Lance la connexion avec Arduino (via port série)
+ * 
+ */
+DeviceServer.prototype.listenArduino = function() {
+	var server = this;
+	
+	if (!server.arduino) {
+		console.log("Check arduino connexion : try to reconnect...")
+		
+		try {
+			server.arduino = new serialport.SerialPort(ARDUINO_PORT, {
+				baudrate: 9600,
+				// Caractères séparateurs = fin de trame + début de trame
+				parser: serialport.parsers.readline('\n')
+			});
+			
+			server.arduino.on('error', function(error) {
+				console.log('Erreur onError Arduino', error);
+				server.arduino = null;
+			});
+			
+			server.arduino.on('open', function(error) {
+				if (error) {
+					console.log('Erreur onOpen Arduino', error);
+					server.arduino = null;
+				} else {
+					server.arduino.on('data', function(data) {
+						server.onArduinoData(data);
+					});
+					server.arduino.on('close', function(error) {
+						console.log('Erreur onClose Arduino', error);
+						server.arduino = null;
+					});
+				}
+			});
+		} catch(exception) {
+			console.error("Erreur connexion Arduino", exception)
+		}
+	} else { 
+		console.log("Check arduino connexion : already connected !")
+	}
+}
+
+
+/**
+ * Réception des trames Arduino
+ * Il peut y avoir les logs de l'arduino ('LOG <message>') ou les envois d'infos
+ * au format JSON ('DATA <json>')
+ */
+DeviceServer.prototype.onArduinoData = function(data) {
+	// Pratique : on récupère les logs de l'arduino
+	if (data.substr(0, 3) == 'LOG') {
+		console.log('Arduino.log', data);
+	} 
+	// Envoi d'un paquet de données (valeur, nouveau device, etc.)
+	else if (data.substr(0, 1) == '{') {
+		try {
+			var json = JSON.parse(data);		
+			// Création d'un device à la volée
+			var device = this.newDevice(json.mac, json.input, json.input ? 
+				'smarthome.automation.deviceType.catalogue.ContactSec' :
+				'smarthome.automation.deviceType.catalogue.BoutonOnOff');
+			device.value = json.value;
+			this.emit('value', device);
+			this.emit('add', device);
+		} catch (exception) {
+			console.error("Cannot parsing arduino data", exception);
+		}
+		
+	}
+};
+
+
+/**
+ * Envoi d'un message à l'arduino
+ */
+DeviceServer.prototype.sendToArduino = function(device) {
+	// vérifie la connexion
+	if (this.arduino) {
+		this.arduino.write(device.mac.replace('arduino', '') + ':' + device.value + '\n');
+	}
+};
 
 
 /**
@@ -132,64 +252,18 @@ DeviceServer.prototype.listenMessage = function(message) {
 	var device = message.device
 	var existDevice = this.findDeviceByMac(device.mac);
 	
-	// on vérifie que le device n'a pas changé entre input et output
-	if (existDevice) {
-		if (message.header == 'delete') {
-			console.log('DeviceServer.listenMessage remove device', device.mac);
-			this.removeDevice(device.mac);
-			return;
-		} else if (existDevice.input != device.deviceType.capteur) {
-			console.log('DeviceServer.listenMessage device already exist but change', device.mac);
-			this.removeDevice(device.mac);
-			existDevice = null;
-		}
-	}
-	
-	// si pas de device on en créée un à la volée
-	if (!existDevice) {
-		// TODO : ajouter un flag autoScan pour éviter de multiplier les tests
-		if (device.deviceType.implClass != 'smarthome.automation.deviceType.catalogue.Temperature' && 
-				device.deviceType.implClass != 'smarthome.automation.deviceType.catalogue.TeleInformation') {
-			console.log('DeviceServer.listenMessage create new device', device.mac);
-			existDevice = this.newDevice(device.mac, device.deviceType.capteur, device.deviceType.implClass)
-			existDevice.params = device.params;
-			existDevice.value = parseFloat(device.value);
-			this.addDevice(existDevice);
-		}
-	} 
-	
 	if (existDevice) {
 		// action utilisateur sur un actionneur
 		if (message.header == 'invokeAction' && !existDevice.input) {
 			var newValue = parseInt(device.value);
 			console.log('DeviceServer.listenMessage invokeAction', existDevice.mac, newValue);
+			// mise à jour type device
+			existDevice.params = device.params
 			existDevice.write(newValue);
 		}
-	}
-};
-
-
-/**
- * Supprime un device par son mac
- */
-DeviceServer.prototype.removeDevice = function(mac) {
-	console.log('DeviceServer.removeDevice try removing on buffer size', mac, this.devices.length);
-	var device = this.findDeviceByMac(mac);
-	
-	if (device) {
-		var index = this.devices.indexOf(device);
-		
-		if (index != -1) {
-			device.free();
-			this.devices.splice(index, 1);
-		} else {
-			console.error('DeviceServer.removeDevice index not find ', mac);
-		}
 	} else {
-		console.error('DeviceServer.removeDevice not find', mac);
+		console.error("Try to command an unfound device !", device.mac);
 	}
-	
-	console.log('DeviceServer.removeDevice new buffer size', this.devices.length);
 };
 
 
@@ -198,9 +272,12 @@ DeviceServer.prototype.removeDevice = function(mac) {
  */
 DeviceServer.prototype.addDevice = function(device) {
 	console.log('DeviceServer.addDevice new device', device.mac);
-	this.devices.push(device);
-	device.init();
-	console.log('DeviceServer.addDevice has now devices', this.devices.length);
+	
+	if (!this.findDeviceByMac(device.mac)) {
+		this.devices.push(device);
+		device.init();
+		console.log('DeviceServer.addDevice has now devices', this.devices.length);
+	}
 };
 
 
@@ -304,6 +381,7 @@ var Device = function(mac, input, server) {
 	this.params = null;
 	this.implClass = null;
 	this.metavalues = null;
+	this.lastRead = new Date()
 };
 
 Device.prototype.log = function() {
@@ -350,51 +428,70 @@ var GPIO = function(mac, input, server) {
 util.inherits(GPIO, Device);
 
 GPIO.prototype.init = function() {
-	console.log("GPIO.init init value...", this.mac, this.value);
+	console.log("GPIO.init...", this.mac, this.value);
 	var device = this;
 	var initValue = this.value;
+	var correctMac = this.mac.replace('gpio', '');
 	
 	if (this.input) {
-		this.object = new gpio(this.mac.replace('gpio', ''), 'in', 'both');
-		
-		// 1ere lecture pour initialiser la bonne valeur
-		device.value = this.object.readSync();
-		console.log("GPIO.init gpio first read...", device.mac, device.value);
-		// on informe le serveur si ecart avec valeur initiale
-		if (initValue != device.value) {
-			console.log("GPIO.init detect init value change...", this.mac, this.value, initValue);
-			device.server.emit('value', device);
-		}
-		
-		this.object.watch(function(err, value) {
-			if (!err) {
-				if (device.value != value) {
-					device.value = value;
-					device.server.emit('value', device);
-				}
+		// gestion du pulldown pour le input sinon le device est flottant.
+		// La lib onoff ne le gère pas mais par contre, elle gère le cas ou le pin est déjà exporté		
+		pigpio.open(MAPGPIO[this.mac], "input pulldown", function(error) {
+			if (error) {
+				console.error("pi-gpio error !", error);
 			} else {
-				console.error('GPIO.init Erreur watch', device.mac, err);
+				console.log('init input pulldown ok...', device.mac)
 			}
+			
+			// dans tous les cas, on continue car l'export peut ne pas marcher si device déjà exportée
+			device.object = new gpio(correctMac, 'in', 'both');
+			
+			// 1ere lecture pour initialiser la bonne valeur
+			device.value = device.object.readSync();
+			console.log("GPIO.init gpio first read...", device.mac, device.value);
+			// on informe le serveur avec la valeur initiale
+			device.server.emit('value', device);
+			
+			device.object.watch(function(err, value) {
+				if (!err) {
+					var now = new Date();
+					
+					// gestion du debouncing (evite les rebonds lors de l'appui d'un BP
+					// toute valeur recue en moins de 100ms est ignorée
+					if ((now.getTime() - device.lastRead.getTime()) > 100) { 
+						device.lastRead = new Date();
+						
+						if (device.value != value) {
+							device.value = value;
+							device.server.emit('value', device);
+						}
+					}
+				} else {
+					console.error('GPIO.init Erreur watch', device.mac, err);
+				}
+			});
+			
+			console.log("GPIO.init Start watching...", this.mac);
 		});
-		
-		console.log("GPIO.init Start watching...", this.mac);
 	} else {
-		this.object = new gpio(this.mac.replace('gpio', ''), 'out');	
 		//si une valeur est passée, on init le device avec la bonne valeur
 		// sauf si device avec timeout sur le write
-		if (device.value && !device.params.timeout) {
-			this.write(device.value);
-		}
+//		if (device.value && !device.params.timeout) {
+//			this.write(device.value);
+//		}
+		
 		console.log("GPIO.init Wait write value...", this.mac);
 	}
 };
 
 GPIO.prototype.free = function() {
+	var correctMac = this.mac.replace('gpio', '');
+	
 	if (this.object) {
 		if (this.input) {
 			this.object.unwatch();
+			this.object.unexport();
 		}
-		this.object.unexport();
 		console.log("GPIO.free unexport", this.mac);
 	}
 };
@@ -404,6 +501,7 @@ GPIO.prototype.read = function() {
 		var device = this;
 		this.object.read(function(err, value) {
 			if (!err) {
+				device.lastRead = new Date()
 				device.value = value;
 			} else {
 				console.error('GPIO.read Error gpio', device.mac, err);
@@ -414,22 +512,18 @@ GPIO.prototype.read = function() {
 
 GPIO.prototype.write = function(value) {
 	console.error('GPIO.write try writing', this.mac, value);
+	this.value = value;
+	var device = this;
+	device.server.emit('arduino', device);
 	
-	if (this.object && !this.input) {
-		this.value = value;
-		var device = this;
-		this.object.writeSync(value);
+	// gestion d'un timeout pour inverser la valeur sur les valeurs non nulles
+	// on renvoit la valeur au serveur
+	if (device.params && device.params.timeout && value) {
+		console.log('GPIO.write trigger timeout for inversing value', device.mac, value);
 		
-		// gestion d'un timeout pour inverser la valeur sur les valeurs non nulles
-		// on renvoit la valeur au serveur
-		// ATTENTION : bien garder le test "value" sinon boucle sans fin 
-		if (device.params && device.params.timeout && value) {
-			console.error('GPIO.write trigger timeout for inversing value', device.mac, value);
-			
-			setTimeout(function() {
-				device.write(0);
-			}, device.params.timeout);
-		}
+		setTimeout(function() {
+			device.write(0);
+		}, device.params.timeout);
 	}
 };
 
@@ -539,8 +633,8 @@ var TeleInfo = function(mac, input, server) {
 		hchp: null,
 		hchc: null,
 		papp: null,
-		hcinst: null,	// diff hchc
-		hpinst: null,	// diff hchp
+		//hcinst: null,	// diff hchc
+		//hpinst: null,	// diff hchp
 	};
 };
 
@@ -577,60 +671,17 @@ TeleInfo.prototype.read = function() {
 		parity: 'even',
 		stopBits: 1,
 		// Caractères séparateurs = fin de trame + début de trame
-		parser: serialport.parsers.readline('\n')
+		parser: serialport.parsers.readline(String.fromCharCode(13,3,2,10))
 	});
 	
 	var self = this.serialDevice;
 	
 	this.serialDevice.on('open', function() {
 		self.on('data', function(data) {
-			// lecture des trames
-			var tokens = data.split(" ");
+			var lignes = data.split('\r\n');
 			
-			if (tokens.length > 2) {
-				tokens[1] = tokens[1].replace(/\./g, "");
-				
-				if (tokens[0] == "ADCO") {
-					device.mac = tokens[1];
-					device.adco = true;
-				} else if (device.adco) {
-					// on ne lit les trames suivantes que si la 1ere a été détectée
-					if (tokens[0] == "OPTARIF") {
-						device.metavalues.opttarif = tokens[1];
-					} else if (tokens[0] == "ISOUSC") {
-						device.metavalues.isousc = tokens[1];
-					} else if (tokens[0] == "HCHC") {
-						// diff avec valeur précédente
-						if (device.metavalues.hchc) {
-							device.metavalues.hcinst = (parseFloat(tokens[1]) - parseFloat(device.metavalues.hchc)) + '';
-						}
-						device.metavalues.hchc = tokens[1];
-					} else if (tokens[0] == "HCHP") {
-						// diff avec valeur précédente
-						if (device.metavalues.hchp) {
-							device.metavalues.hpinst = (parseFloat(tokens[1]) - parseFloat(device.metavalues.hchp)) + '';
-						}
-						device.metavalues.hchp = tokens[1];
-					} else if (tokens[0] == "PTEC") {
-						device.metavalues.ptec = tokens[1];
-					} else if (tokens[0] == "IINST") {
-						device.value = tokens[1];
-					} else if (tokens[0] == "IMAX") {
-						device.metavalues.imax = tokens[1];
-					} else if (tokens[0] == "PAPP") {
-						device.metavalues.papp = tokens[1];
-					} else if (tokens[0] == 'MOTDETAT') {
-						// flag vite pour bloquer les autres lectures le temps que le device soit fermé
-						device.adco = false;
-						// dernière trame, on peut envoyer le device ua serveur
-						device.server.emit('value', device);
-						device.free();
-					}
-				}
-			}
-			
-			if (device.nbRead++ > TELEINFO_MAXREAD) {
-				device.free();
+			for (var i=0; i < lignes.length; i++) {
+				device.parseData(lignes[i]);
 			}
 		});
 	});
@@ -638,6 +689,80 @@ TeleInfo.prototype.read = function() {
 
 TeleInfo.prototype.isHorsConnexion = function(value) {
 	return true;
+};
+
+
+TeleInfo.prototype.parseData = function(data) {
+	var device = this;
+	
+	// lecture des trames
+	var tokens = data.split(" ");
+	var checksum = device.checksum(data);
+	
+	if (tokens.length > 2 && checksum) {
+		tokens[1] = tokens[1].replace(/\./g, "");
+		
+		if (tokens[0] == "ADCO") {
+			device.mac = tokens[1];
+			device.adco = true;
+		} else if (device.adco) {
+			// on ne lit les trames suivantes que si la 1ere a été détectée
+			if (tokens[0] == "OPTARIF") {
+				device.metavalues.opttarif = tokens[1];
+			} else if (tokens[0] == "ISOUSC") {
+				device.metavalues.isousc = tokens[1];
+			} else if (tokens[0] == "HCHC") {
+				// diff avec valeur précédente
+				//if (device.metavalues.hchc) {
+				//	device.metavalues.hcinst = (parseFloat(tokens[1]) - parseFloat(device.metavalues.hchc)) + '';
+				//}
+				device.metavalues.hchc = tokens[1];
+			} else if (tokens[0] == "HCHP") {
+				// diff avec valeur précédente
+				//if (device.metavalues.hchp) {
+				//	device.metavalues.hpinst = (parseFloat(tokens[1]) - parseFloat(device.metavalues.hchp)) + '';
+				//}
+				device.metavalues.hchp = tokens[1];
+			} else if (tokens[0] == "PTEC") {
+				device.metavalues.ptec = tokens[1];
+			} else if (tokens[0] == "IINST") {
+				device.value = tokens[1];
+			} else if (tokens[0] == "IMAX") {
+				device.metavalues.imax = tokens[1];
+			} else if (tokens[0] == "PAPP") {
+				device.metavalues.papp = tokens[1];
+			} else if (tokens[0] == 'MOTDETAT') {
+				// flag vite pour bloquer les autres lectures le temps que le device soit fermé
+				device.adco = false;
+				// dernière trame, on peut envoyer le device ua serveur
+				device.server.emit('value', device);
+				device.free();
+			}
+		}
+	} else if (! checksum) {
+		console.error("error checksum on data", data);
+	}
+};
+
+/**
+ * Calcule le checksum de la chaine de caractère
+ * 
+ * Spec chk : somme des codes ASCII + ET logique 03Fh + ajout 20 en hexadécimal
+ * Résultat toujours un caractère ASCII imprimable allant de 20 à 5F en hexadécimal
+ * Checksum calculé sur etiquette+space+données => retirer les 2 derniers caractères
+ * 
+ */
+TeleInfo.prototype.checksum = function(value) {
+	var sum = 0;
+	var j;
+	
+	for (j=0; j < value.length-2; j++) {
+		sum += value.charCodeAt(j);
+	}
+	
+	sum = (sum & 63) + 32;
+	
+	return (sum == value.charCodeAt(j+1));
 };
 
 
