@@ -7,12 +7,11 @@ var gpio = require('onoff').Gpio;
 var fs = require('fs');
 var serialport = require("serialport");
 var pigpio = require("pi-gpio");
+var Device = require("./Device").Device;
+var TeleInfo = require("./TeleInfo").TeleInfo;
+var OneWire = require("./OneWire").OneWire;
 
-var ONEWIREPATH = '/sys/bus/w1/devices/';
-var ONEWIREFAMILYTEMPERATURE = '28';
-var TELEINFO_PORT = "/dev/ttyAMA0";
-var TELEINFO_MAXREAD = 30;
-var DEFAULT_FREQUENCY = 60000 * 5;	// toutes les 5 minutes
+
 var ARDUINO_PORT = "/dev/ttyACM0";
 var ARDUINO_FREQUENCY = 60000; // toutes les minutes
 
@@ -46,8 +45,8 @@ var MAPGPIO = {
 var DeviceServer = function() {
 	this.devices = new Array();
 	this.onValue = null;
-	this.teleinfo = this.newDevice(null, true, 'smarthome.automation.deviceType.catalogue.TeleInformation');
-	this.teleinfo.serialFile = TELEINFO_PORT;
+	this.teleInfo = new TeleInfo(this);
+	this.oneWire = new OneWire(this);
 	this.arduino = null;
 };
 
@@ -81,41 +80,21 @@ DeviceServer.prototype.listen = function() {
 		deviceServer.listenMessage(message);
 	});
 
-	deviceServer.on('onewire', function(message) {
-		deviceServer.listenOneWires();	
-	});
-	
-	deviceServer.on('teleinfo', function(message) {
-		deviceServer.teleinfo.init();	
-	});
-	
 	deviceServer.on('arduino', function(device) {
 		deviceServer.sendToArduino(device);
 	});
 	
-	// Timer pour les devices auto-scan
-	deviceServer.listenAutoScan();
-	setInterval(function() {
-		deviceServer.listenAutoScan();
-	}, DEFAULT_FREQUENCY);
-
 	// connexion bidirectionnelle avec arduino avec un timer pour relancer les connexion perdues
 	deviceServer.listenArduino();
 	setInterval(function() {
 		deviceServer.listenArduino();
 	}, ARDUINO_FREQUENCY);
 	
+	deviceServer.teleInfo.init();
+	deviceServer.oneWire.init();
+	
 	console.log('DeviceServer.startServer Start listening...');
 	return deviceServer;
-}
-
-
-/**
- * Déclenche une lecture des devices auto scan
- */
-DeviceServer.prototype.listenAutoScan = function() {
-	this.emit('onewire');
-	this.emit('teleinfo');
 }
 
 
@@ -332,91 +311,6 @@ DeviceServer.prototype.findDeviceByType = function(type) {
 
 
 /**
- * Liste les devices OneWire et pour chacun lance le listener
- * 
- * @param processListener
- */
-DeviceServer.prototype.listenOneWires = function() {
-	var server = this;
-	
-	console.log('DeviceServer.listenOneWires Search and read onewire devices');
-	
-	// le path des devices 1-wire
-	fs.readdir(ONEWIREPATH, function(error, files) {
-		if (error) {
-			console.error('Error scan OneWire devices', error);
-		} else if (files) {
-			files.forEach(function(file) {
-				// on ne tient pas compte du dossier master
-				if (file != 'w1_bus_master1') {
-					var device = server.newDevice(file, true, 'smarthome.automation.deviceType.catalogue.Temperature');
-					device.init();
-				}
-			});
-		}
-	});
-}; 
-
-
-/**
- * Déclenche la lecture du téléinfo
- * 
- * @param processListener
- */
-DeviceServer.prototype.listenTeleInfo = function() {
-	var server = this;
-	console.log('DeviceServer.listenTeleInfo');
-	// pour le mac, on ne le connait pas à l'avance
-	
-	device.init();
-}
-
-
-var Device = function(mac, input, server) {
-	this.object = null;
-	this.mac = mac;	
-	this.input = input;
-	this.value = null;
-	this.server = server;
-	this.params = null;
-	this.implClass = null;
-	this.metavalues = null;
-	this.lastRead = new Date()
-};
-
-Device.prototype.log = function() {
-	console.log(this);
-};
-
-Device.prototype.init = function() {
-	// chaque implémentation doit le définir
-	console.warn('Not implemented !');
-};
-
-Device.prototype.free = function() {
-	// chaque implémentation doit le définir
-	console.warn('Not implemented !');
-};
-
-Device.prototype.read = function() {
-	// chaque implémentation doit le définir
-	console.warn('Not implemented !');
-};
-
-Device.prototype.write = function(value) {
-	// chaque implémentation doit le définir
-	console.warn('Not implemented !');
-};
-
-Device.prototype.isHorsConnexion = function(value) {
-	// chaque implémentation doit le définir
-	console.warn('Not implemented !');
-};
-
-util.inherits(Device, events.EventEmitter);
-
-
-/**
  * Implémentation Gpio
  * Hérite de Device
  */
@@ -534,241 +428,9 @@ GPIO.prototype.isHorsConnexion = function(value) {
 };
 
 
-/**
- * Implémentation OneWire
- * Hérite de Device
- */
-
-var OneWire = function(mac, input, server) {
-	Device.call(this, mac, input, server);
-};
-
-util.inherits(OneWire, Device);
-
-OneWire.prototype.init = function() {
-	this.read();
-	console.log("OneWire.init Start watching ..." + this.mac);
-};
-
-OneWire.prototype.free = function() {
-	console.log("OneWire.free Unwatch onewire " + this.mac);
-};
-
-OneWire.prototype.read = function() {	
-	var device = this;
-	
- 	fs.readFile(ONEWIREPATH + device.mac + '/w1_slave', function(error, buffer) {
- 		if (error) {
- 			console.error('OneWire.read Error reading', device.mac, error);
- 		} else if (buffer) {
-	 		/* Exemple de fichier pour la famille des températures
-	 		 * 37 00 4b 46 ff ff 07 10 1e : crc=1e YES
-			 * 37 00 4b 46 ff ff 07 10 1e t=27312
-	 		 */
-	 		if (device.mac.substring(0, 2) == ONEWIREFAMILYTEMPERATURE) {
-	 			var lines = buffer.toString().split('\n');
-	 			
-	 			if (lines.length > 1 && lines[0].trim().match('YES$')) {
-	 				var tokens = lines[1].split('t=');
-	 				
-	 				if (tokens && tokens[1]) {	 					
-	 					device.value = tokens[1].trim();
-						
-						// conversion en float avec une seule décimale
-						if (!isNaN(device.value)) {
-							var convertValue = Math.round(+device.value / 100.) / 10.;
-							
-							// conversion à 0.5  près
-							var intPart = parseInt(convertValue);
-							var decimalPart = convertValue - intPart;
-							
-							console.log('OneWire.read int/decimal part', intPart, decimalPart);
-							
-							if (decimalPart < 0.25) {
-								convertValue = intPart;
-							} else if (decimalPart < 0.75) {
-								convertValue = intPart + 0.5;
-							} else {
-								convertValue = intPart + 1;
-							}
-							
-							console.log('OneWire.read Convert value', device.mac, device.value, convertValue);
-							device.value = convertValue;
-							device.server.emit('value', device);
-						}
-	 				}
-	 			} else {
-					console.error('OneWire.read checksum error', device.mac, buffer.toString());
-				}
-	 		} else {
-	 			console.error('OneWire.read OneWire family not implemented', device.mac);
-	 		}
- 		} else {
- 			console.error('OneWire.read File ' + device.mac + ' is empty');
- 		}
-	});
-};
-
-OneWire.prototype.isHorsConnexion = function(value) {
-	return true;
-};
-
-
-/**
- * Implémentation TeleInfo
- * Hérite de Device
- */
-
-var TeleInfo = function(mac, input, server) {
-	Device.call(this, mac, input, server);
-	this.serialFile = null;
-	this.serialDevice = null;
-	this.adco = false; // lecture de la 1ere trame
-	this.nbRead = 0; // sécurité pour pas rester lire le buffer si y'a rien dedans
-	this.metavalues = {
-		opttarif: null,
-		ptec: null,
-		isousc: null,
-		imax: null,
-		hchp: null,
-		hchc: null,
-		papp: null,
-		//hcinst: null,	// diff hchc
-		//hpinst: null,	// diff hchp
-	};
-};
-
-util.inherits(TeleInfo, Device);
-
-TeleInfo.prototype.init = function() {
-	if (this.serialFile) {
-		console.log("TeleInfo.init...");
-		this.free();
-		this.read();
-	} else {
-		console.error('TeleInfo.init serialFile is empty !');
-	}
-};
-
-TeleInfo.prototype.free = function() {
-	console.log("TeleInfo.free");
-	if (this.serialDevice) {
-		try {
-			this.serialDevice.close();
-		} catch (exception) {}
-		this.serialDevice = null;
-	}
-};
-
-TeleInfo.prototype.read = function() {	
-	var device = this;
-	this.adco = false;
-	this.nbRead = 0;
-	
-	this.serialDevice = new serialport.SerialPort(this.serialFile, {
-		baudrate: 1200,
-		dataBits: 7,
-		parity: 'even',
-		stopBits: 1,
-		// Caractères séparateurs = fin de trame + début de trame
-		parser: serialport.parsers.readline(String.fromCharCode(13,3,2,10))
-	});
-	
-	var self = this.serialDevice;
-	
-	this.serialDevice.on('open', function() {
-		self.on('data', function(data) {
-			var lignes = data.split('\r\n');
-			
-			for (var i=0; i < lignes.length; i++) {
-				device.parseData(lignes[i]);
-			}
-		});
-	});
-};
-
-TeleInfo.prototype.isHorsConnexion = function(value) {
-	return true;
-};
-
-
-TeleInfo.prototype.parseData = function(data) {
-	var device = this;
-	
-	// lecture des trames
-	var tokens = data.split(" ");
-	var checksum = device.checksum(data);
-	
-	if (tokens.length > 2 && checksum) {
-		tokens[1] = tokens[1].replace(/\./g, "");
-		
-		if (tokens[0] == "ADCO") {
-			device.mac = tokens[1];
-			device.adco = true;
-		} else if (device.adco) {
-			// on ne lit les trames suivantes que si la 1ere a été détectée
-			if (tokens[0] == "OPTARIF") {
-				device.metavalues.opttarif = tokens[1];
-			} else if (tokens[0] == "ISOUSC") {
-				device.metavalues.isousc = tokens[1];
-			} else if (tokens[0] == "HCHC") {
-				// diff avec valeur précédente
-				//if (device.metavalues.hchc) {
-				//	device.metavalues.hcinst = (parseFloat(tokens[1]) - parseFloat(device.metavalues.hchc)) + '';
-				//}
-				device.metavalues.hchc = tokens[1];
-			} else if (tokens[0] == "HCHP") {
-				// diff avec valeur précédente
-				//if (device.metavalues.hchp) {
-				//	device.metavalues.hpinst = (parseFloat(tokens[1]) - parseFloat(device.metavalues.hchp)) + '';
-				//}
-				device.metavalues.hchp = tokens[1];
-			} else if (tokens[0] == "PTEC") {
-				device.metavalues.ptec = tokens[1];
-			} else if (tokens[0] == "IINST") {
-				device.value = tokens[1];
-			} else if (tokens[0] == "IMAX") {
-				device.metavalues.imax = tokens[1];
-			} else if (tokens[0] == "PAPP") {
-				device.metavalues.papp = tokens[1];
-			} else if (tokens[0] == 'MOTDETAT') {
-				// flag vite pour bloquer les autres lectures le temps que le device soit fermé
-				device.adco = false;
-				// dernière trame, on peut envoyer le device ua serveur
-				device.server.emit('value', device);
-				device.free();
-			}
-		}
-	} else if (! checksum) {
-		console.error("error checksum on data", data);
-	}
-};
-
-/**
- * Calcule le checksum de la chaine de caractère
- * 
- * Spec chk : somme des codes ASCII + ET logique 03Fh + ajout 20 en hexadécimal
- * Résultat toujours un caractère ASCII imprimable allant de 20 à 5F en hexadécimal
- * Checksum calculé sur etiquette+space+données => retirer les 2 derniers caractères
- * 
- */
-TeleInfo.prototype.checksum = function(value) {
-	var sum = 0;
-	var j;
-	
-	for (j=0; j < value.length-2; j++) {
-		sum += value.charCodeAt(j);
-	}
-	
-	sum = (sum & 63) + 32;
-	
-	return (sum == value.charCodeAt(j+1));
-};
-
 
 
 module.exports.DeviceServer = DeviceServer;
-module.exports.Device = Device;
 module.exports.newInstance = function() {
 	return new DeviceServer();
 };

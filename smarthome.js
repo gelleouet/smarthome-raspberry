@@ -1,4 +1,4 @@
-var deviceServer = require('./device').newInstance();
+var deviceServer = require('./DeviceServer').newInstance();
 var offline = require('./offline').newInstance();
 var websocket = require('./websocket').newInstance();
 var fs = require('fs');
