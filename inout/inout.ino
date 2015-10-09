@@ -1,8 +1,17 @@
-const int DEBUTPIN = 2;
+const int DEBUTPIN = 4;
 const int FINPIN = 13;
+const int PIN_ISR_COMPTEURSEC = 2;
+const int PIN_ISR_COMPTEUR = 3;
 const int MAXBUFFER = 16;
-char buffer[MAXBUFFER];
-int idxBuffer = 0;
+const unsigned long SEND_TIMER = 60000 * 5; // toutes les 5 minutes
+
+char _buffer[MAXBUFFER];
+int _idxBuffer = 0;
+volatile int _compteur = 0;
+volatile int _compteurParSeconde = 0;
+volatile int _maxCompteurParSeconde = 0;
+unsigned long _lastCompteurParSeconde = 0;
+unsigned long _lastSendTimer = 0;
 
 
 void setup() {
@@ -17,17 +26,54 @@ void setup() {
     }
   }
 
+  // les pins interrupt sont congigurés en entrée
+  pinMode(PIN_ISR_COMPTEURSEC, INPUT_PULLUP);
+  pinMode(PIN_ISR_COMPTEUR, INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(PIN_ISR_COMPTEURSEC), compteurMaxParSeconde, LOW);
+  attachInterrupt(digitalPinToInterrupt(PIN_ISR_COMPTEUR), compteur, LOW);
+
   resetBuffer();
   
   Serial.begin(9600); 
 
   // on previent l'agent du nombre de pins configurés
   for (int idx=DEBUTPIN; idx<=FINPIN; idx++) {
-    Serial.print("{\"mac\": \"arduino");
-    Serial.print(idx);
-    Serial.println("\", \"value\": 0}");
+    sendValue(idx, 0);
   }
 }
+
+
+/**
+ * Envoi la valeur d'un pin vers le controller
+ */
+void sendValue(int pin, int value) {
+   Serial.print("{\"mac\": \"arduino");
+   Serial.print(pin);
+   Serial.print("\", \"value\":");
+   Serial.print(value);
+   Serial.println("}");
+}
+
+
+
+/**
+ * Vérifie le timer pour l'envoi de données
+ */
+void checkSendTimer() {
+  unsigned long timer = millis();
+  long ellapse = timer - _lastSendTimer;
+
+  if (ellapse >= SEND_TIMER) {
+    sendValue(PIN_ISR_COMPTEURSEC, _maxCompteurParSeconde);
+    sendValue(PIN_ISR_COMPTEUR, _compteur);
+
+    // reset des valeurs
+    _compteur = 0;
+    _maxCompteurParSeconde = 0;
+    _lastSendTimer = timer;
+  }
+}
+
 
 void loop() {
   if (Serial.available()) {
@@ -36,24 +82,26 @@ void loop() {
       resetBuffer();
     }
   }
+
+  checkSendTimer();
 }
 
 
 void resetBuffer() {
-  memset(buffer, 0, MAXBUFFER);
-  idxBuffer = 0;
+  memset(_buffer, 0, MAXBUFFER);
+  _idxBuffer = 0;
 }
 
 
 boolean readBuffer() {
-   buffer[idxBuffer] = (char) Serial.read();
+   _buffer[_idxBuffer] = (char) Serial.read();
 
-   if (buffer[idxBuffer] == '\n' || buffer[idxBuffer] == '\r') {
-     buffer[idxBuffer] = '\0';
+   if (_buffer[_idxBuffer] == '\n' || _buffer[_idxBuffer] == '\r') {
+     _buffer[_idxBuffer] = '\0';
      return true;   
    } else {
-     if (idxBuffer < (MAXBUFFER-2)) {
-        idxBuffer++;      
+     if (_idxBuffer < (MAXBUFFER-2)) {
+        _idxBuffer++;      
      } else {
         resetBuffer();
      }
@@ -64,7 +112,7 @@ boolean readBuffer() {
 
 
 void parseBuffer() {
-  char *split = strtok(buffer, ":");
+  char *split = strtok(_buffer, ":");
   int pin = -1;
   int valeur = -1;
 
@@ -92,5 +140,35 @@ void parseBuffer() {
       Serial.println(pin);      
     }
   }
+}
+
+
+/**
+ * Interrupt pour les compteurs max par seconde
+ * Le compteur est réinitialisé toutes les secondes
+ * et seule la valeur max est conservée
+ */
+void compteurMaxParSeconde() {
+  unsigned long timer = millis();
+  long ellapse = timer - _lastCompteurParSeconde;
+
+  // reset toutes les secondes et sauvegarde du max
+  if (ellapse >= 1000) {
+    if (_compteurParSeconde > _maxCompteurParSeconde) {
+       _maxCompteurParSeconde = _compteurParSeconde;
+    }
+    _compteurParSeconde = 0;
+    _lastCompteurParSeconde = timer;
+  }
+  _compteurParSeconde++;
+}
+
+
+/**
+ * Interrupt pour les compteurs simples
+ * Le compteur est incrémenté à chaque fois
+ */
+void compteur() {
+  _compteur++;
 }
 

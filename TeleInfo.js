@@ -11,7 +11,7 @@ var Device = require("./Device").Device;
 var LOG = require("./Log").newInstance();
 
 
-var SMARTHOME_CLASS = "smarthome.automation.deviceType.catalogue.TeleInformation"
+var SMARTHOME_CLASS = "smarthome.automation.deviceType.TeleInformation"
 var TELEINFO_SERIAL_PORT = "/dev/ttyAMA0";
 var READ_INTERVAL = 60000 * 5;	// toutes les 5 minutes
 

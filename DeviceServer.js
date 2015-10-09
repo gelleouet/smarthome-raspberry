@@ -4,7 +4,6 @@
 var util = require('util');
 var events = require('events');
 var gpio = require('onoff').Gpio;
-var fs = require('fs');
 var serialport = require("serialport");
 var pigpio = require("pi-gpio");
 var Device = require("./Device").Device;
@@ -159,8 +158,8 @@ DeviceServer.prototype.onArduinoData = function(data) {
 			var json = JSON.parse(data);		
 			// Création d'un device à la volée
 			var device = this.newDevice(json.mac, json.input, json.input ? 
-				'smarthome.automation.deviceType.catalogue.ContactSec' :
-				'smarthome.automation.deviceType.catalogue.BoutonOnOff');
+				'smarthome.automation.deviceType.ContactSec' :
+				'smarthome.automation.deviceType.BoutonOnOff');
 			device.value = json.value;
 			this.emit('value', device);
 			this.emit('add', device);
@@ -189,9 +188,9 @@ DeviceServer.prototype.sendToArduino = function(device) {
 DeviceServer.prototype.newDevice = function(mac, input, implClass) {
 	var device;
 	
-	if (implClass == 'smarthome.automation.deviceType.catalogue.Temperature') {
+	if (implClass == 'smarthome.automation.deviceType.Temperature') {
 		device = new OneWire(mac, input, this);
-	} else if (implClass == 'smarthome.automation.deviceType.catalogue.TeleInformation') {
+	} else if (implClass == 'smarthome.automation.deviceType.TeleInformation') {
 		device = new TeleInfo(mac, input, this);
 	} else {
 		device =  new GPIO(mac, input, this);

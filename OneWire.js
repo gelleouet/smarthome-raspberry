@@ -11,7 +11,7 @@ var Device = require("./Device").Device;
 var LOG = require("./Log").newInstance();
 
 
-var SMARTHOME_CLASS = "smarthome.automation.deviceType.catalogue.Temperature"
+var SMARTHOME_CLASS = "smarthome.automation.deviceType.Temperature"
 var ONEWIRE_PATH = '/sys/bus/w1/devices/';
 var ONEWIRE_FAMILY_TEMPERATURE = '28';
 var READ_INTERVAL = 60000 * 5;	// toutes les 5 minutes

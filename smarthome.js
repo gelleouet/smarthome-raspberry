@@ -15,13 +15,13 @@ deviceServer.onValue = onValueDevice;
 // préconfiguration des pins :
 // de cette manière, les pins en input vont automatiquement s'enregistrer sur le serveur avec les bons names
 // l'utilisateur n'aura pas besoin de le faire manuellement
-deviceServer.addDevice(deviceServer.newDevice('gpio4', true, 'smarthome.automation.deviceType.catalogue.ContactSec'));
-deviceServer.addDevice(deviceServer.newDevice('gpio17', true, 'smarthome.automation.deviceType.catalogue.ContactSec'));
-deviceServer.addDevice(deviceServer.newDevice('gpio22', true, 'smarthome.automation.deviceType.catalogue.ContactSec'));
-deviceServer.addDevice(deviceServer.newDevice('gpio18', true, 'smarthome.automation.deviceType.catalogue.ContactSec'));
-deviceServer.addDevice(deviceServer.newDevice('gpio23', true, 'smarthome.automation.deviceType.catalogue.ContactSec'));
-deviceServer.addDevice(deviceServer.newDevice('gpio24', true, 'smarthome.automation.deviceType.catalogue.ContactSec'));
-deviceServer.addDevice(deviceServer.newDevice('gpio25', true, 'smarthome.automation.deviceType.catalogue.ContactSec'));
+deviceServer.addDevice(deviceServer.newDevice('gpio4', true, 'smarthome.automation.deviceType.ContactSec'));
+deviceServer.addDevice(deviceServer.newDevice('gpio17', true, 'smarthome.automation.deviceType.ContactSec'));
+deviceServer.addDevice(deviceServer.newDevice('gpio22', true, 'smarthome.automation.deviceType.ContactSec'));
+deviceServer.addDevice(deviceServer.newDevice('gpio18', true, 'smarthome.automation.deviceType.ContactSec'));
+deviceServer.addDevice(deviceServer.newDevice('gpio23', true, 'smarthome.automation.deviceType.ContactSec'));
+deviceServer.addDevice(deviceServer.newDevice('gpio24', true, 'smarthome.automation.deviceType.ContactSec'));
+deviceServer.addDevice(deviceServer.newDevice('gpio25', true, 'smarthome.automation.deviceType.ContactSec'));
 
 
 //Démarre le serveur pour la lecture des devices
