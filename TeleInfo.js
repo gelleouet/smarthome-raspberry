@@ -13,7 +13,14 @@ var LOG = require("./Log").newInstance();
 
 var SMARTHOME_CLASS = "smarthome.automation.deviceType.TeleInformation"
 var TELEINFO_SERIAL_PORT = "/dev/ttyAMA0";
-var READ_INTERVAL = 60000 * 5;	// toutes les 5 minutes
+var TELEINFO_CHECK_TIMER = 10000; // 10 secondes
+var TELEINFO_VALUE_TIMER = 300000; // 5 minutes
+// Timer pour l'envoide valeurs si dépassement puissance
+// Le téléinfo envoit ce message pendant 1 minute 
+// (cf http://www.planete-domotique.com/notices/ERDF-NOI-CPT_O2E.pdf)
+// l'agent enverra donc 4 messages pendant cette minute, le temps à l'application de réagir
+// au bout d'une minute, de toute facon, si la puissance dépasse toujours la limite, le compteur saute
+var TELEINFO_ADPS_TIMER = 15000; // 15 secondes
 
 /**
  * Constructor
@@ -21,9 +28,11 @@ var READ_INTERVAL = 60000 * 5;	// toutes les 5 minutes
  */
 var TeleInfo = function TeleInfo(server) {
 	Device.call(this, null, true, server);
-	this.serialDevice = null;
+	
 	this.metavalues = {};
 	this.implClass = SMARTHOME_CLASS
+	this.starting = true;
+	this.timerCreate = false;
 };
 
 util.inherits(TeleInfo, Device);
@@ -33,87 +42,113 @@ util.inherits(TeleInfo, Device);
  * @see Device.init
  */
 TeleInfo.prototype.init = function() {
-	LOG.info(this, "Init");
-	this.free();
-	this.read();
 	var device = this;
 	
-	// relance une lecture différée
-	setTimeout(function() {
-		device.init();
-	}, READ_INTERVAL);
+	if (!this.object) {
+		LOG.info(device, "Init (not connected)...");
+		
+		device.object = new serialport.SerialPort(TELEINFO_SERIAL_PORT, {
+			baudrate: 1200,
+			dataBits: 7,
+			parity: 'even',
+			stopBits: 1,
+			// Caractères séparateurs = fin de trame + début de trame
+			parser: serialport.parsers.readline(String.fromCharCode(13,3,2,10))
+		});
+		
+		device.object.on('error', function(error) {
+			LOG.error(device, 'Connexion impossible', error);
+			device.object = null;
+		});
+		
+		device.object.on('open', function(error) {
+			if (error) {
+				LOG.info(device, 'Serial port openning error', error);
+				device.object = null;
+			} else {
+				device.object.on('data', function(data) {
+					device.onData(data);
+				});
+				device.object.on('close', function(error) {
+					LOG.info(device, 'Serial port closed !', error);
+					device.object = null;
+				});
+			}
+		});
+	}
+	
+	// création d'une routine pour surveiller l'état du driver
+	// et le reconnecter automatiquement
+	if (!this.timerCreate) {
+		this.timerCreate = true;
+		setTimeout(function() {
+			device.init();
+		}, TELEINFO_CHECK_TIMER);
+	}
 };
+
+
+/**
+ * Réception des trames téléinfo
+ * 
+ */
+TeleInfo.prototype.onData = function(data) {
+	var lignes = data.split('\r\n');
+	var values = {};
+	
+	for (var i=0; i < lignes.length; i++) {
+		this.parseData(lignes[i], values);
+	}
+	
+	// trame complète, on envoi un message au serveur
+	if (values.adco && values.motdetat) {
+		var now = new Date();
+		var timer = now.getTime() - this.lastRead.getTime();
+		var adps = values.adps && (timer >= TELEINFO_ADPS_TIMER);
+		
+		// on n'envoit le message que tous les X intervalles ou au 1er init
+		// ou si adps signalé tous les Y intervalles
+		if (this.starting || adps || (timer >= TELEINFO_VALUE_TIMER)) {
+			// création d'un nouvel objet à envoyer pour être thread-safe
+			var teleinfo = new TeleInfo(this.server)
+			teleinfo.mac = values.adco;
+			teleinfo.value = values.iinst;
+			teleinfo.metavalues = values;
+			LOG.info(teleinfo, "Compteur " + teleinfo.mac + " poll new value !", teleinfo.value, teleinfo.adps)
+			
+			// supprime les valeurs redondantes car pas mappé sur server
+			delete values.adco;
+			delete values.iinst;
+			delete values.motdetat;
+			
+			this.server.emit("value", teleinfo);
+			this.starting = false;
+			this.lastRead = now;
+		}
+	}
+}
 
 
 /**
  * @see Device.free
  */
 TeleInfo.prototype.free = function() {
-	if (this.serialDevice) {
+	if (this.object) {
 		LOG.info(this, "Free");
 		
 		try {
-			this.serialDevice.close();
+			this.object.close();
 		} catch (exception) {}
-		this.serialDevice = null;
+		this.object = null;
 	}
 };
 
 
 /**
- * @see Device.read
+ * @see Device.canWrite
  */
-TeleInfo.prototype.read = function() {	
-	var device = this;
-	
-	device.serialDevice = new serialport.SerialPort(TELEINFO_SERIAL_PORT, {
-		baudrate: 1200,
-		dataBits: 7,
-		parity: 'even',
-		stopBits: 1,
-		// Caractères séparateurs = fin de trame + début de trame
-		parser: serialport.parsers.readline(String.fromCharCode(13,3,2,10))
-	});
-	
-	
-	device.serialDevice.on('open', function() {
-		device.serialDevice.on('data', function(data) {
-			var lignes = data.split('\r\n');
-			var values = {};
-			
-			for (var i=0; i < lignes.length; i++) {
-				device.parseData(lignes[i], values);
-			}
-			
-			// trame complète, on envoi un message au serveur
-			if (values.adco && values.motdetat) {
-				// création d'un nouvel objet à envoyer pour être thread-safe
-				var teleinfo = new TeleInfo(device.server)
-				teleinfo.mac = values.adco;
-				teleinfo.value = values.iinst;
-				teleinfo.metavalues = values;
-				LOG.info(teleinfo, "Compteur " + teleinfo.mac + " detected !", teleinfo.value)
-				
-				// supprime les valeurs redondantes car pas mappé sur server
-				delete values.adco;
-				delete values.iinst;
-				delete values.motdetat;
-				
-				device.server.emit("value", teleinfo);
-				
-				// on arrête la lecture du téléinfo car les lectures sont déclenchées à intervalle régulier
-				device.free();
-			}
-		});
-	});
-};
-
-
-/**
- * @see Device.isHorsConnexion
- */
-TeleInfo.prototype.isHorsConnexion = function(value) {
-	return true;
+TeleInfo.prototype.canWrite = function(device) {
+	return false;
 };
 
 
@@ -153,6 +188,8 @@ TeleInfo.prototype.parseData = function(data, values) {
 			values.papp = tokens[1];
 		} else if (tokens[0] == 'MOTDETAT') {
 			values.motdetat = true
+		} else if (tokens[0] == 'ADPS') {
+			values.adps = tokens[1];
 		}
 	}
 };

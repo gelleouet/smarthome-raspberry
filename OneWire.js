@@ -16,6 +16,10 @@ var ONEWIRE_PATH = '/sys/bus/w1/devices/';
 var ONEWIRE_FAMILY_TEMPERATURE = '28';
 var READ_INTERVAL = 60000 * 5;	// toutes les 5 minutes
 
+
+///etc/modprobe.d/
+//Vous écrivez à l’intérieur « options wire max_slave_count=20″
+
 /**
  * Constructor
  * @see Device
@@ -109,10 +113,10 @@ OneWire.prototype.read = function() {
 
 
 /**
- * @see Device.isHorsConnexion
+ * @see Device.canWrite
  */
-OneWire.prototype.isHorsConnexion = function(value) {
-	return true;
+OneWire.prototype.canWrite = function(device) {
+	return false;
 };
 
 

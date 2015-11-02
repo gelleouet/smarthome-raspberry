@@ -8,25 +8,30 @@ var fs = require('fs');
 var os = require('os');
 var WsWebSocket = require('ws');
 var uuid = require('node-uuid');
+var LOG = require("./Log").newInstance();
 require('ssl-root-cas/latest')
 	.inject();
 
 
-var SUBSCRIBE_TIMEOUT = 60000 * 1; // toutes les 1 minutes
-var HTTP_TIMEOUT = 1000 * 10; // 10 secondes
+var WEBSOCKET_TIMER = 10000; // 10 secondes
+var HTTP_TIMEOUT = 10000; // 10 secondes
 
 /**
  * Constructeur Websocket
  */
-var Websocket = function() {
+var Websocket = function Websocket() {
 	this.token = null;
 	this.username = null;
 	this.applicationKey = null;
 	this.applicationHost = null;
 	this.websocketUrl = null;
 	this.ws = null;
-	this.onmessage = null;
 	this.agentModel = null;
+	this.subscribing = false;
+	
+	this.onMessage = null;
+	this.onConnected = null;
+	
 	var websocket = this;
 	
 	websocket.on('subscribe', function() {
@@ -57,10 +62,14 @@ Websocket.prototype.listen = function() {
 	
 	setInterval(function() {
 		if (!websocket.ws || websocket.ws == WsWebSocket.CLOSED) {
-			console.log('Websocket.listen detect closed channel. try reconnecting...');
-			websocket.emit('subscribe');
+			if (!websocket.subscribing) {
+				LOG.info(websocket, 'Channel is closed : try reconnecting...');
+				websocket.emit('subscribe');
+			} else {
+				LOG.info(websocket, 'Channel is closed but current subscribing');
+			}
 		}
-	}, SUBSCRIBE_TIMEOUT);
+	}, WEBSOCKET_TIMER);
 }
 
 
@@ -69,10 +78,12 @@ Websocket.prototype.listen = function() {
  * et récupérer un token de connexion pour le websocket
  */
 Websocket.prototype.subscribe = function() {
-	console.log("Websocket.subscribe try get a token from...");
+	LOG.info(this, "Subscribe for new token...");
 	var websocket = this;
 	
 	if (this.credential()) {
+		websocket.subscribing = true;
+		
 		var options = {
 			url: this.applicationHost + '/agent/subscribe',
 			method: 'POST',
@@ -86,8 +97,6 @@ Websocket.prototype.subscribe = function() {
 			}
 		};
 		
-		console.log("Websocket.subscribe url options", options.url, options.formData);
-		
 		function subscribeCallBack(error, response, body) {
 			if (response && response.statusCode == 200) {
 				var token = null;
@@ -95,7 +104,7 @@ Websocket.prototype.subscribe = function() {
 				try {
 					token = JSON.parse(body);
 				} catch (ex) {
-					console.error('Websocket.subscribe response i not a valid json !', body);
+					LOG.error(websocket, 'Subscribe response not valid !', body);
 				}
 				
 				if (token) {
@@ -104,22 +113,21 @@ Websocket.prototype.subscribe = function() {
 					websocket.websocketUrl = token.websocketUrl;
 					
 					if (websocket.token && websocket.websocketUrl) {
-						console.info('Websocket.subscribe find new token', body);
+						LOG.info(websocket, 'Subscribe find new token : try openning channel');
 						websocket.emit('websocket');
 						return true;
 					} else {
-						console.error('Websocket.subscribe Find no token or websocketUrl !');
+						LOG.error(websocket, 'Subscribe incomplete : no token or websocketUrl !');
 					}
 				}
 			}
 			
 			// arrivé là y'a eu une erreur plus haut
-			console.error('Websocket.subscribe request error. Try reconnecting...', error, body);
+			LOG.error(websocket, 'Subscribe request error', error);
+			websocket.subscribing = false;
 		};
 		
 		request(options, subscribeCallBack);
-	} else {
-		console.info('Websocket.subscribe credential incomplet. Try reconnecting...', SUBSCRIBE_TIMEOUT);
 	}
 };
 
@@ -131,13 +139,13 @@ Websocket.prototype.subscribe = function() {
  * @return true si les infos obligatoires sont présentes
  */
 Websocket.prototype.credential = function() {
-	console.log("Websocket.credential reading file...");
+	LOG.info(this, "Credential loading...");
 	var buffer = null;
 	
 	try {
 		buffer = fs.readFileSync(__dirname + '/smarthome.credentials');
 	} catch (ex) {
-		console.error('Websocket.credential Error reading file', ex);
+		LOG.error(this, 'Credential reading file', ex);
 		return false;
 	}
 	
@@ -151,14 +159,14 @@ Websocket.prototype.credential = function() {
 			this.agentModel = credentials.agentModel;
 			
 			var network = os.networkInterfaces();
-			console.log('Websocket.<init> network interface', network);
+			LOG.info(this, 'Find network interface', network);
 			
 			if (network.eth0) {
 				this.mac = network.eth0[0].mac;
 				this.address = network.eth0[0].address;
 				// pas d'info mac sur nodejs v0.10. donc il faut le rajouter dans les credentials
 				if (!this.mac) {
-					console.log('No mac from os.networkInterfaces(). Try get it from credential...');
+					LOG.info(this, 'No mac from os.networkInterfaces(). Try get it from credential...');
 					this.mac = credentials.mac; 
 				}
 				
@@ -168,13 +176,13 @@ Websocket.prototype.credential = function() {
 				
 				return this.username && this.applicationKey && this.applicationHost && this.mac;
 			} else {
-				console.error('Websocket.credential No ethernet interface');
+				LOG.error(this, 'No ethernet interface');
 			}
 		} else {
-			console.error('Websocket.credential Error format JSON');
+			LOG.error(this, 'Error format JSON');
 		}
 	} else {
-		console.error('Websocket.credential Error reading file');
+		LOG.error(this, 'Credential file is empty !');
 	}
 	
 	return false;
@@ -185,7 +193,9 @@ Websocket.prototype.credential = function() {
  * Libère les réssources et ferme le websocket
  */
 Websocket.prototype.close = function() {
-	console.info('Websocket.close channel');
+	LOG.info(this, 'Closing channel...');
+	this.subscribing = false;
+	
 	if (this.ws) {
 		this.ws.close();
 		this.ws = null;
@@ -201,6 +211,8 @@ Websocket.prototype.close = function() {
  * @param message
  */
 Websocket.prototype.sendMessage = function(message, onerror) {
+	var websocket = this;
+	
 	if (this.ws) {
 		var data = {
 				mac: this.mac,
@@ -214,20 +226,16 @@ Websocket.prototype.sendMessage = function(message, onerror) {
 		
 		this.ws.send(jsonData, function ack(error) {
 			if (error) {
-				console.error('Websocket.sendMessage error', error);
+				LOG.error(websocket, 'sendMessage error', error);
 				if (onerror) {
 					onerror(error, message);
 				}
 			} else {
-				console.info('Websocket.sendMessage Envoi ok', message);
+				LOG.info(websocket, 'sendMessage complete', message);
 			}
 		});
-	} else {
-		console.error('Websocket.sendMessage not connected !');
-		
-		if (onerror) {
-			onerror('Websocket is not connected !', message);
-		}
+	} else if (onerror) {
+		onerror('Websocket not connected !', message);
 	}
 };
 
@@ -237,7 +245,7 @@ Websocket.prototype.sendMessage = function(message, onerror) {
  * Reste à l'écoute des messages depuis le websocket
  */
 Websocket.prototype.websocket = function() {
-	console.log("Websocket.websocket openning channel...", this.websocketUrl);
+	LOG.info(this, "Openning channel...", this.websocketUrl);
 	
 	if (this.token && this.websocketUrl) {
 		var websocket = this;
@@ -245,29 +253,34 @@ Websocket.prototype.websocket = function() {
 		try {
 			this.ws = new WsWebSocket(this.websocketUrl);
 		} catch (ex) {
-			console.error('Websocket.websocket error connexion websocket', ex);
+			LOG.error(websocket, 'URL not valid', ex);
 			websocket.close();
 			return;
 		}
 		
 		this.ws.on('close', function(code, message) {
-			console.log('Websocket.websocket Channel is disconnected', code, message);
+			LOG.info(websocket, 'Channel disconnected !', code, message);
 			websocket.close();
 		});
 		
 		this.ws.on('open', function() {
-			console.log('Websocket.websocket Channel is connected');
+			LOG.info(websocket, 'Channel connected !');
+			websocket.subscribing = false;
 			// vérifie que le channel fonctionne
 			websocket.sendMessage({header: 'Hello'});
+			
+			if (websocket.onConnected) {
+				websocket.onConnected();
+			}
 		});
 		
 		this.ws.on('error', function(error) {
-			console.error('Websocket.websocket Channel error', error);
+			LOG.error(websocket, 'Channel error', error);
 			websocket.close();
 		});
 		
 		this.ws.on('message', function message(data, flags) {
-			console.log('Websocket.websocket receiving data...');
+			LOG.info(websocket, 'Receiving data...');
 			
 			// le message doit contenir dans son entete les infos de connexion.
 			// evite de repondre à des messages externes même si pas possible car websocket connecté à appli smarthome
@@ -276,17 +289,17 @@ Websocket.prototype.websocket = function() {
 			try {
 				message = JSON.parse(data)
 			} catch (ex) {
-				console.error("Message is not a JSON data !");
+				LOG.error(websocket, "Message not valid !");
 				return;
 			}
 			
 			if (message.applicationKey == websocket.applicationKey && message.username == websocket.username &&
 					message.mac == websocket.mac && message.token == websocket.token) {
-				if (websocket.onmessage && message.data) {
-					websocket.onmessage(message.data);
+				if (websocket.onMessage && message.data) {
+					websocket.onMessage(message.data);
 				}
 			} else {
-				console.error("Authentification header error !");
+				LOG.error(websocket, "Authentification header error !");
 			}
 		});
 	} else {

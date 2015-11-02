@@ -16,12 +16,13 @@ var Device = function(mac, input, server) {
 	this.object = null;
 	this.mac = mac;	
 	this.input = input;
-	this.value = null;
 	this.server = server;
+	this.lastRead = new Date();
+	
+	this.value = null;
 	this.params = null;
 	this.implClass = null;
 	this.metavalues = null;
-	this.lastRead = new Date()
 };
 
 
@@ -54,32 +55,44 @@ Device.prototype.free = function() {
 
 
 /**
- * Lecture des données sur le device
- * si device input
- */
-Device.prototype.read = function() {
-	// chaque implémentation doit le définir
-	console.warn('Not implemented !');
-};
-
-
-/**
  * Ecriture de données sur le device
  * Si device output
  */
-Device.prototype.write = function(value) {
+Device.prototype.write = function(device) {
 	// chaque implémentation doit le définir
 	console.warn('Not implemented !');
 };
 
 
 /**
- * Indique si le device peut être utilisé en hors connexion
- * (Perte de la connexion avec le serveur principal)
+ * Passe le device en mode inclusion
+ * pour l'auto-détection de nouveaux devices
  */
-Device.prototype.isHorsConnexion = function(value) {
+Device.prototype.startInclusion = function() {
 	// chaque implémentation doit le définir
 	console.warn('Not implemented !');
+};
+
+
+/**
+ * Indique si le drive peut prendre en charge l'écriture du device
+ */
+Device.prototype.canWrite = function(device) {
+	// chaque implémentation doit le définir
+	console.warn('Not implemented !');
+};
+
+
+/**
+ * Copie un device (la copie est de type Device)
+ */
+Device.prototype.clone = function(device) {
+	var clone = new Device(device.mac, device.input, device.server)
+	clone.value = device.value
+	clone.params = device.params
+	clone.implClass = device.implClass
+	clone.metavalues = device.metavalues
+	return clone
 };
 
 

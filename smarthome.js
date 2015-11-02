@@ -1,35 +1,28 @@
 var deviceServer = require('./DeviceServer').newInstance();
-var offline = require('./offline').newInstance();
-var websocket = require('./websocket').newInstance();
-var fs = require('fs');
+var websocket = require('./Websocket').newInstance();
+var offline = require('./Offline').newInstance();
+var LOG = require("./Log").newInstance();
 
+// Le temps écoulé accepté pour renvoyer des messages à
+// cause du websocket fermé
+var SEND_MESSAGE_TIME = 30000; // 30 secondes
 
 console.log("-------------------------------------------------");
 console.log("Smarthome.start from dir", __dirname, new Date());
 console.log("-------------------------------------------------");
 
 
+//lancement du websocket avec son listener pour la gestion des messages
+websocket.onMessage = onWebsocketMessage;
+websocket.onConnected = onWebsocketConnected;
+websocket.listen();
+
+
 // On fournit un listener pour le changement des valeurs
-deviceServer.onValue = onValueDevice;
-
-// préconfiguration des pins :
-// de cette manière, les pins en input vont automatiquement s'enregistrer sur le serveur avec les bons names
-// l'utilisateur n'aura pas besoin de le faire manuellement
-deviceServer.addDevice(deviceServer.newDevice('gpio4', true, 'smarthome.automation.deviceType.ContactSec'));
-deviceServer.addDevice(deviceServer.newDevice('gpio17', true, 'smarthome.automation.deviceType.ContactSec'));
-deviceServer.addDevice(deviceServer.newDevice('gpio22', true, 'smarthome.automation.deviceType.ContactSec'));
-deviceServer.addDevice(deviceServer.newDevice('gpio18', true, 'smarthome.automation.deviceType.ContactSec'));
-deviceServer.addDevice(deviceServer.newDevice('gpio23', true, 'smarthome.automation.deviceType.ContactSec'));
-deviceServer.addDevice(deviceServer.newDevice('gpio24', true, 'smarthome.automation.deviceType.ContactSec'));
-deviceServer.addDevice(deviceServer.newDevice('gpio25', true, 'smarthome.automation.deviceType.ContactSec'));
-
-
 //Démarre le serveur pour la lecture des devices
+deviceServer.onMessage = onDeviceMessage;
 deviceServer.listen();
 
-// lancement du websocket avec son listener pour la gestion des messages
-websocket.onmessage = onMessageWebsocket;
-websocket.listen();
 
 // gestionnaire fin application
 process.on('SIGINT', exit);
@@ -38,40 +31,50 @@ process.on('SIGTERM', exit);
 
 /**
  * Listener pour le changement des valeurs des devices
+ * Délègue directement au websocket pour envoi au serveur
  * 
  * @param device
  */
-function onValueDevice(device) {
-	var now = new Date();
-	
-	var message = {
-			header: 'deviceValue',
-			implClass: device.implClass, 
-			mac: device.mac,
-			value: device.value,
-			dateValue: now,
-			metavalues: device.metavalues,
-			timezoneOffset: now.getTimezoneOffset()
-	}
-	
-	console.log("Smarthome.onValueDevice", device.mac, device.value);
-	
+function onDeviceMessage(message) {
 	websocket.sendMessage(message, function (error, message) {
-		
+		offline.add(message)
+		LOG.error(websocket, "Saving unsended message...", [error, message.mac, message.value]);
 	});
 }
 
 
 /**
  * Listener pour les messages du websocket
+ * Délégue directement au gestionnaire de devices
  * 
  * @param message
  */
-function onMessageWebsocket(message) {
-	console.log("Smarthome.onMessageWebsocket", message);
+function onWebsocketMessage(message) {
+	deviceServer.sendMessage(message, function (error, message) {
+		
+	});
+}
+
+
+/**
+ * Listener pour signaler la connexion complète du websocket
+ * Permet de réenvoyer les valeurs hors connexion
+ * 
+ * @param message
+ */
+function onWebsocketConnected() {
+	var message
+	var now = new Date()
 	
-	if (message.device) {
-		deviceServer.emit('message', message);
+	while ((message = offline.remove()) != null) {
+		var dateMessage = message.dateValue;
+		
+		if (dateMessage && (now.getTime() - dateMessage.getTime() <= SEND_MESSAGE_TIME)) {
+			LOG.info(websocket, "Try re-sending saved message...", [message.mac, message.value])
+			websocket.emit('sendMessage', message);
+		} else {
+			LOG.error(websocket, "Failed re-sending too old message !", [message.mac, message.value])
+		}
 	}
 }
 
@@ -80,8 +83,10 @@ function onMessageWebsocket(message) {
  * Quitte proprement l'application en libérant les ressources
  */
 function exit() {
+	console.log("-------------------------------------------------");
 	console.log("Smarthome.exit", new Date());
-	deviceServer.clearDevices();
+	deviceServer.close();
 	websocket.close();
+	console.log("-------------------------------------------------");
 	process.exit();
 }

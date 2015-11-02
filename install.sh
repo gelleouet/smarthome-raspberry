@@ -3,9 +3,15 @@
 # Dossier application user
 cd /opt
 
+
 # Version plus à jour compilée ARM
 wget http://node-arm.herokuapp.com/node_latest_armhf.deb
 sudo dpkg -i node_latest_armhf.deb
+
+
+# Installation paquets Linux
+apt-get install libudev-dev
+
 
 # Installation des modules NodeJS
 npm install epoll
@@ -16,6 +22,9 @@ npm install node-uuid
 npm install request
 npm install ssl-root-cas
 npm install serialport@1.4.9
+npm install pi-gpio
+npm install node-gyp
+npm install openzwave
 
 
 cd /opt/smarthome
