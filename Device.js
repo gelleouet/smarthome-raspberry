@@ -83,18 +83,6 @@ Device.prototype.canWrite = function(device) {
 };
 
 
-/**
- * Copie un device (la copie est de type Device)
- */
-Device.prototype.clone = function(device) {
-	var clone = new Device(device.mac, device.input, device.server)
-	clone.value = device.value
-	clone.params = device.params
-	clone.implClass = device.implClass
-	clone.metavalues = device.metavalues
-	return clone
-};
-
 
 /**
  * Hérite de Event
