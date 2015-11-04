@@ -231,7 +231,7 @@ Websocket.prototype.sendMessage = function(message, onerror) {
 					onerror(error, message);
 				}
 			} else {
-				LOG.info(websocket, 'sendMessage complete', message);
+				LOG.info(websocket, 'sendMessage complete', [message]);
 			}
 		});
 	} else if (onerror) {

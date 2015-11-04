@@ -155,5 +155,21 @@ Gpio.prototype.canWrite = function(device) {
 };
 
 
+/**
+ * @see Device.startInclusion
+ */
+Gpio.prototype.startInclusion = function() {
+	
+};
+
+
+/**
+ * @see config
+ */
+Gpio.prototype.config = function(deviceMac, metadataName, metadataValue) {
+	
+};
+
+
 
 module.exports.Gpio = Gpio;

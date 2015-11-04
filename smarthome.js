@@ -38,7 +38,7 @@ process.on('SIGTERM', exit);
 function onDeviceMessage(message) {
 	websocket.sendMessage(message, function (error, message) {
 		offline.add(message)
-		LOG.error(websocket, "Saving unsended message...", [error, message.mac, message.value]);
+		LOG.error(websocket, "Saving unsended message...", [error, message.header, message.mac]);
 	});
 }
 
@@ -70,10 +70,10 @@ function onWebsocketConnected() {
 		var dateMessage = message.dateValue;
 		
 		if (dateMessage && (now.getTime() - dateMessage.getTime() <= SEND_MESSAGE_TIME)) {
-			LOG.info(websocket, "Try re-sending saved message...", [message.mac, message.value])
+			LOG.info(websocket, "Try re-sending saved message...", [message.header, message.mac])
 			websocket.emit('sendMessage', message);
 		} else {
-			LOG.error(websocket, "Failed re-sending too old message !", [message.mac, message.value])
+			LOG.error(websocket, "Failed re-sending too old message !", [message.header, message.mac])
 		}
 	}
 }

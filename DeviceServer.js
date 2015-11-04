@@ -40,12 +40,12 @@ util.inherits(DeviceServer, events.EventEmitter);
 DeviceServer.prototype.listen = function() {
 	var deviceServer = this;	
 	
-	deviceServer.on('value', function(device) {
-		deviceServer.onValue(device);
+	deviceServer.on('value', function(device, header) {
+		deviceServer.onValue(device, header);
 	});
 
 	deviceServer.on('inclusion', function(driver) {
-		deviceServer.onInclusion(driver);
+		driver.startInclusion();
 	});
 
 	deviceServer.on('write', function(driver, device) {
@@ -53,7 +53,11 @@ DeviceServer.prototype.listen = function() {
 	});
 	
 	deviceServer.on('init', function(driver) {
-		deviceServer.onInit(driver);
+		driver.init();
+	});
+
+	deviceServer.on('config', function(driver, deviceMac, metadataName, metadataValue) {
+		driver.config(deviceMac, metadataName, metadataValue);
 	});
 	
 	// Démarre tous les drivers
@@ -89,10 +93,15 @@ DeviceServer.prototype.sendMessage = function(message, onerror) {
 	
 	if (message.header == "startInclusion") {
 		this.startInclusion();
-	} else if (message.header == "invokeAction") {
+	} else if (message.header == "config") {
 		for (driverName in this.drivers) {
-			if (this.drivers[driverName].canWrite(device)) {
-				this.emit('write', this.drivers[driverName], device);
+			this.emit('config', this.drivers[driverName], message.deviceMac, 
+					message.metadataName, message.metadataValue);
+		}
+	} else if (message.header == "invokeAction" && message.device) {
+		for (driverName in this.drivers) {
+			if (this.drivers[driverName].canWrite(message.device)) {
+				this.emit('write', this.drivers[driverName], message.device);
 			}
 		}
 	} else {
@@ -114,39 +123,25 @@ DeviceServer.prototype.close = function() {
 /**
  * Réception d'une nouvelle valeur d'un device
  */
-DeviceServer.prototype.onValue = function(device) {
+DeviceServer.prototype.onValue = function(device, header) {
 	if (this.onMessage) {
 		var now = new Date();
 		
 		var message = {
-				header: 'deviceValue',
+				header: header ? header : 'deviceValue',
 				implClass: device.implClass, 
 				mac: device.mac,
 				value: device.value,
+				label: device.label,
 				dateValue: now,
 				metavalues: device.metavalues,
+				metadatas: device.metadatas,
 				timezoneOffset: now.getTimezoneOffset()
 		}
 		
 		this.onMessage(message);
 	}
 };
-
-
-/**
- * Passe un driver en mode inclusion
- */
-DeviceServer.prototype.onInclusion = function(driver) {
-	driver.startInclusion();
-}
-
-
-/**
- * Init un driver
- */
-DeviceServer.prototype.onInit = function(driver) {
-	driver.init();
-}
 
 
 /**
@@ -157,7 +152,7 @@ DeviceServer.prototype.onWrite = function(driver, device) {
 	driver.write(device);
 	
 	if (device.params && device.params.timeout) {
-		LOG.info('Start timer for ' + device.mac + ' : ' + device.params.timeout + 'ms');
+		LOG.info(this, 'Start timer for ' + device.mac + ' : ' + device.params.timeout + 'ms');
 		
 		setTimeout(function() {
 			// inversion de la valeur

@@ -111,8 +111,8 @@ TeleInfo.prototype.onData = function(data) {
 		if (this.starting || adps || (timer >= TELEINFO_VALUE_TIMER)) {
 			// création d'un nouvel objet à envoyer pour être thread-safe
 			var teleinfo = new TeleInfo(this.server)
-			teleinfo.mac = values.adco;
-			teleinfo.value = values.iinst;
+			teleinfo.mac = values.adco.value;
+			teleinfo.value = values.iinst.value;
 			teleinfo.metavalues = values;
 			LOG.info(teleinfo, "Compteur " + teleinfo.mac + " poll new value !", teleinfo.value, teleinfo.adps)
 			
@@ -153,6 +153,22 @@ TeleInfo.prototype.canWrite = function(device) {
 
 
 /**
+ * @see Device.startInclusion
+ */
+TeleInfo.prototype.startInclusion = function() {
+	
+};
+
+
+/**
+ * @see config
+ */
+TeleInfo.prototype.config = function(deviceMac, metadataName, metadataValue) {
+	
+};
+
+
+/**
  * Lecture d'une trame téléinfo (une ligne d'une trame)
  * 
  * @param data
@@ -167,29 +183,32 @@ TeleInfo.prototype.parseData = function(data, values) {
 	
 	if (tokens.length > 2 && checksum) {
 		tokens[1] = tokens[1].replace(/\./g, "");
+		var metavalue = {
+			value: tokens[1]
+		}
 		
 		if (tokens[0] == "ADCO") {
-			values.adco = tokens[1];
+			values.adco = metavalue
 		} else if (tokens[0] == "OPTARIF") {
-			values.opttarif = tokens[1];
+			values.opttarif = metavalue
 		} else if (tokens[0] == "ISOUSC") {
-			values.isousc = tokens[1];
+			values.isousc = metavalue
 		} else if (tokens[0] == "HCHC") {
-			values.hchc = tokens[1];
+			values.hchc = metavalue
 		} else if (tokens[0] == "HCHP") {
-			values.hchp = tokens[1];
+			values.hchp = metavalue
 		} else if (tokens[0] == "PTEC") {
-			values.ptec = tokens[1];
+			values.ptec = metavalue
 		} else if (tokens[0] == "IINST") {
-			values.iinst = tokens[1];
+			values.iinst = metavalue
 		} else if (tokens[0] == "IMAX") {
-			values.imax = tokens[1];
+			values.imax = metavalue
 		} else if (tokens[0] == "PAPP") {
-			values.papp = tokens[1];
+			values.papp = metavalue
 		} else if (tokens[0] == 'MOTDETAT') {
 			values.motdetat = true
 		} else if (tokens[0] == 'ADPS') {
-			values.adps = tokens[1];
+			values.adps = metavalue
 		}
 	}
 };

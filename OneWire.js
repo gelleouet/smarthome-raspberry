@@ -121,6 +121,23 @@ OneWire.prototype.canWrite = function(device) {
 
 
 /**
+ * @see Device.startInclusion
+ */
+OneWire.prototype.startInclusion = function() {
+	
+};
+
+
+/**
+ * @see config
+ */
+OneWire.prototype.config = function(deviceMac, metadataName, metadataValue) {
+	
+};
+
+
+
+/**
  * Scanne le bus 1-Wire et lance la lecture des sondes trouvées
  */
 OneWire.prototype.scanOneWireBus = function() {	

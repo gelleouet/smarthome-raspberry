@@ -146,5 +146,21 @@ Arduino.prototype.canWrite = function(device) {
 };
 
 
+/**
+ * @see Device.startInclusion
+ */
+Arduino.prototype.startInclusion = function() {
+	
+};
+
+
+/**
+ * @see config
+ */
+Arduino.prototype.config = function(deviceMac, metadataName, metadataValue) {
+	
+};
+
+
 
 module.exports.Arduino = Arduino;

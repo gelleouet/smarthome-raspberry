@@ -19,10 +19,12 @@ var Device = function(mac, input, server) {
 	this.server = server;
 	this.lastRead = new Date();
 	
+	this.label = null;
 	this.value = null;
 	this.params = null;
 	this.implClass = null;
 	this.metavalues = null;
+	this.metadatas = null;
 };
 
 
@@ -78,6 +80,15 @@ Device.prototype.startInclusion = function() {
  * Indique si le drive peut prendre en charge l'écriture du device
  */
 Device.prototype.canWrite = function(device) {
+	// chaque implémentation doit le définir
+	console.warn('Not implemented !');
+};
+
+
+/**
+ * Change la configuration d'une propriété d'un device
+ */
+Device.prototype.config = function(deviceMac, metadataName, metadataValue) {
 	// chaque implémentation doit le définir
 	console.warn('Not implemented !');
 };
