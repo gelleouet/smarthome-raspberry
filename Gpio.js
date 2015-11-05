@@ -90,6 +90,7 @@ Gpio.prototype.doInit = function() {
 			// 1ere lecture pour initialiser la bonne valeur
 			device.value = device.object.readSync();
 			LOG.info(device, "Reading first value...", [device.mac, device.value]);
+			device.server.emit("value", device);
 			
 			device.object.watch(function(err, value) {
 				if (!err) {
