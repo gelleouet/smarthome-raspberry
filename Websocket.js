@@ -13,7 +13,7 @@ require('ssl-root-cas/latest')
 	.inject();
 
 
-var WEBSOCKET_TIMER = 10000; // 10 secondes
+var WEBSOCKET_TIMER = 5000; // 5 secondes
 var HTTP_TIMEOUT = 10000; // 10 secondes
 
 /**
