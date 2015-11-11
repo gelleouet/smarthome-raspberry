@@ -17,6 +17,11 @@ var COMMAND_CLASS_CONFIGURATION = 112;
 var COMMAND_CLASS_SWITCH_BINARY = 37;
 var COMMAND_CLASS_SWITCH_MULTILEVEL = 38;
 
+var COMMAND_MAPPING = {
+	"on": ["open"],
+	"off": ["close"],
+}
+
 
 /**
  * Constructor
@@ -91,6 +96,7 @@ ZWave.prototype.init = function() {
 	
 	this.zwave.on('value added', function(nodeid, comclass, value) {
 		device.nodes[nodeid][value.value_id] = value
+		LOG.info(device, "Value added", value)
 	});
 	
 	this.zwave.connect(ZWAVE_PORT);
@@ -132,21 +138,36 @@ ZWave.prototype.write = function(device) {
 		return
 	}
 	
+	// recherche d'abord avec les buttons du device
+	var metaButton = this.findButton(node, COMMAND_MAPPING[device.command.toLowerCase()])
+	
+	if (metaButton) {
+		LOG.info(this, "Try pressButton", metaButton.label)
+		var ids = this.parseIds(metaButton.value_id)
+		this.zwave.pressButton(ids.nodeId, ids.commandClass, ids.instance, ids.index)
+		return
+	}
+
+	LOG.info(this, "No user button found for ", device.command)
+	
+	// sinon on passe par les méthodes "génériques"
 	if (device.command.toLowerCase() == "on" || device.command.toLowerCase() == "off") {
 		// recherche d'une value Switch
-		var metaSwitch = this.findValue(node, "Switch")
+		var metaSwitch = this.findValue(node, ["switch"])
 		
 		if (metaSwitch) {
+			LOG.info(this, "Try switch command")
 			var ids = this.parseIds(metaSwitch.value_id)
 			this.zwave.setValue(ids.nodeId, ids.commandClass, ids.instance, ids.index,
 					device.command.toLowerCase() == "on" ? true : false)
 		}
 	} else {
 		// recherche d'une value Level
-		var metaLevel = this.findValue(node, "Level")
+		var metaLevel = this.findValue(node, ["level"])
 		var value = this.convertValue(device.value)
 		
 		if (metaLevel) {
+			LOG.info(this, "Try level command")
 			var ids = this.parseIds(metaLevel.value_id)
 			this.zwave.setValue(ids.nodeId, ids.commandClass, ids.instance, ids.index, value)
 		}
@@ -187,7 +208,7 @@ ZWave.prototype.sendDeviceMetavalues = function(nodeId, metaName) {
 	device.mac = "zwave" + nodeId
 	
 	// TODO : voir si la règle s'applique aux autres devices
-	var metaLevel = this.findValue(node, "Level")
+	var metaLevel = this.findValue(node, ["level"])
 	
 	if (metaLevel) {
 		device.value = metaLevel.value
@@ -235,19 +256,17 @@ ZWave.prototype.sendDeviceMetadatas = function(nodeId, metaName) {
 				var metavalue = {
 						label: metadata.label + (metadata.units ? ' (' + metadata.units + ')' : ''),
 						value: metadata.value != null ? metadata.value : null,
-						help: metadata.help != null ? metadata.help : null,
+						//help: metadata.help != null ? metadata.help : null,
 						type: metadata.genre + ' (' + metadata.type + ')',
 						values: metadata.values != null ? '' + metadata.values : null
 				}
 				
-				// reset les valeurs précédentes
-				device.metadatas = {}
 				device.metadatas[valueName] = metavalue
-				
-				this.server.emit('value', device, 'deviceConfig')
 			}
 		}
 	}
+	
+	this.server.emit('value', device, 'deviceConfig')
 }
 
 
@@ -255,7 +274,7 @@ ZWave.prototype.sendDeviceMetadatas = function(nodeId, metaName) {
  * 
  */
 ZWave.prototype.isMetadata = function(metadata) { 
-	return !metadata.read_only && metadata.type != 'button' && metadata.genre != 'user' && metadata.value_id
+	return !metadata.read_only && metadata.genre != 'user' && metadata.value_id
 }
 
 
@@ -293,11 +312,42 @@ ZWave.prototype.parseIds = function(value) {
 /**
  * Recherche d'une valeur d'un node par son label
  */
-ZWave.prototype.findValue = function(node, label) {
+ZWave.prototype.findValue = function(node, labels) {
+	if (labels == null) {
+		return null
+	}
+	
 	for (valueName in node) {
 		var metadata = node[valueName]
-		if (metadata.label == label) {
-			return metadata
+		
+		for (var idx=0; idx<labels.length; idx++) {
+			if (metadata.label != null && metadata.label.toLowerCase() == labels[idx].toLowerCase()) {
+				return metadata
+			}
+		}
+	}
+	
+	return null
+}
+
+
+/**
+ * Recherche d'un button avec son (ses) labels
+ */
+ZWave.prototype.findButton = function(node, labels) {
+	if (labels == null) {
+		return null
+	}
+	
+	for (valueName in node) {
+		var metadata = node[valueName]
+		
+		if (metadata.type == 'button') {
+			for (var idx=0; idx<labels.length; idx++) {
+				if (metadata.label != null && metadata.label.toLowerCase() == labels[idx].toLowerCase()) {
+					return metadata
+				}
+			}
 		}
 	}
 	

@@ -224,7 +224,7 @@ Websocket.prototype.sendMessage = function(message, onerror) {
 		
 		var jsonData = JSON.stringify(data);
 		
-		this.ws.send(jsonData, function ack(error) {
+		this.ws.send(jsonData, {compress: true}, function ack(error) {
 			if (error) {
 				LOG.error(websocket, 'sendMessage error', error);
 				if (onerror) {
