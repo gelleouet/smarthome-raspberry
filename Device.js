@@ -77,6 +77,16 @@ Device.prototype.startInclusion = function() {
 
 
 /**
+ * Passe le device en mode exclusion
+ * pour la suppression du controller d'un device
+ */
+Device.prototype.startExclusion = function() {
+	// chaque implémentation doit le définir
+	console.warn('Not implemented !');
+};
+
+
+/**
  * Indique si le drive peut prendre en charge l'écriture du device
  */
 Device.prototype.canWrite = function(device) {
