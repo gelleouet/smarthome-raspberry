@@ -11,16 +11,33 @@ var Device = require("./Device").Device;
 var LOG = require("./Log").newInstance();
 
 
-var SMARTHOME_CLASS = "smarthome.automation.deviceType.Zwave"
+var SMARTHOME_ZWAVE_CLASS = "smarthome.automation.deviceType.Zwave"
 var ZWAVE_PORT = "/dev/ttyUSB0";
 var COMMAND_CLASS_CONFIGURATION = 112;
 var COMMAND_CLASS_SWITCH_BINARY = 37;
 var COMMAND_CLASS_SWITCH_MULTILEVEL = 38;
 
+
+/**
+ * Le mappng des commandes envoyées par la webapp
+ * et celles programmées sur les devices
+ */
 var COMMAND_MAPPING = {
 	"on": ["open"],
 	"off": ["close"],
 }
+
+/**
+ * Liste des valeurs qui doivent être enregistrées
+ * dans la valeur principale du device
+ */
+var DEFAULT_VALUES = ["level", "sensor", "smoke"]
+
+/**
+ * Des valeurs spéciales qui doivent être enregistrées sur
+ * des devices à part
+ */
+var ALONE_VALUES = ["temperature", "luminance"]
 
 
 /**
@@ -29,10 +46,11 @@ var COMMAND_MAPPING = {
  */
 var ZWave = function ZWave(server) {
 	Device.call(this, null, true, server);
-	this.implClass = SMARTHOME_CLASS
+	this.implClass = SMARTHOME_ZWAVE_CLASS
 	this.metavalues = {};
 	this.metadatas = {};
 	this.nodes = [];
+	this.networkScan = false;
 };
 
 util.inherits(ZWave, Device);
@@ -60,34 +78,47 @@ ZWave.prototype.init = function() {
 	
 	this.zwave.on('scan complete', function() {
 		LOG.info(device, 'Network scan complete.');
+		device.networkScan = true;
 	});
 	
 	this.zwave.on('node added', function(nodeid) {
 		LOG.info(device, "Found new device ", nodeid);
-		device.nodes[nodeid] = {
-				ready: false
-		}
+		device.nodes[nodeid] = {}
 	});
 	
 	this.zwave.on('node ready', function(nodeid, nodeinfo) {
 		device.nodes[nodeid]['productinfo'] = nodeinfo
-		device.nodes[nodeid].ready = true
 		LOG.info(device, "Device " + nodeid + " is ready ", nodeinfo);
 		device.sendDeviceMetavalues(nodeid)
 		device.sendDeviceMetadatas(nodeid)
+		device.sendDeviceAloneValues(nodeid)
 		
 		// activation du polling sur les value de type command
 		device.zwave.enablePoll(nodeid, COMMAND_CLASS_SWITCH_BINARY)
 		device.zwave.enablePoll(nodeid, COMMAND_CLASS_SWITCH_MULTILEVEL)
 	});
 	
+	this.zwave.on('node naming', function(nodeid, nodeinfo) {
+		LOG.info(device, "Device " + nodeid + " naming ", nodeinfo);
+	});
+
+	this.zwave.on('node available', function(nodeid, nodeinfo) {
+		LOG.info(device, "Device " + nodeid + " available ", nodeinfo);
+	});
+	
+	this.zwave.on('value refreshed', function(nodeid, comclass, value) {
+		LOG.info(device, "Value refreshed", value)
+	});
+	
 	this.zwave.on('value changed', function(nodeid, comclass, value) {
 		var oldValue = device.nodes[nodeid][value.value_id]
 		device.nodes[nodeid][value.value_id] = value
 		
-		if (device.nodes[nodeid].ready && oldValue.value != value.value) {
+		if (device.networkScan && oldValue.value != value.value) {
 			if (device.isMetadata(value)) {
 				device.sendDeviceMetadatas(nodeid, value.value_id)
+			} else if (device.isAloneValue(value)) {
+				device.sendDeviceAloneValues(nodeid, value.value_id)
 			} else {
 				device.sendDeviceMetavalues(nodeid, value.value_id)
 			}
@@ -185,6 +216,15 @@ ZWave.prototype.startInclusion = function() {
 
 
 /**
+ * @see Device.startExclusion
+ */
+ZWave.prototype.startExclusion = function() {
+	LOG.info(this, "Starting exclusion...");
+	this.zwave.removeNode();
+};
+
+
+/**
  * @see config
  */
 ZWave.prototype.config = function(deviceMac, metadataName, metadataValue) {
@@ -196,6 +236,30 @@ ZWave.prototype.config = function(deviceMac, metadataName, metadataValue) {
 	}
 };
 
+/**
+ * Envoit une valeur autonome. Cela créé un nouveau sous device du device
+ * principal
+ */
+ZWave.prototype.sendDeviceAloneValues = function(nodeId, metaName) {
+	var node = this.nodes[nodeId]
+	
+	for (valueName in node) {
+		if (!metaName || metaName == valueName) {
+			var metadata = node[valueName]
+			
+			if (metadata.value && this.isAloneValue(metadata)) {
+				var device = new ZWave(this.server)
+				device.mac = "zwave" + metadata.value_id
+				device.label = metadata.label
+				if (node.productinfo) {
+					device.label = device.label + ' (' + node.productinfo.product + ')'
+				}
+				device.value = metadata.value
+				this.server.emit('value', device)
+			}
+		}
+	}
+}
 
 /**
  * Convertit un node ZWave en device et envoit les infos au serveur
@@ -204,11 +268,14 @@ ZWave.prototype.config = function(deviceMac, metadataName, metadataValue) {
 ZWave.prototype.sendDeviceMetavalues = function(nodeId, metaName) {
 	var node = this.nodes[nodeId]
 	var device = new ZWave(this.server)
-	device.label = node.productinfo.product
 	device.mac = "zwave" + nodeId
 	
+	if (node.productinfo) {
+		device.label = node.productinfo.product
+	}
+	
 	// TODO : voir si la règle s'applique aux autres devices
-	var metaLevel = this.findValue(node, ["level"])
+	var metaLevel = this.findValue(node, DEFAULT_VALUES)
 	
 	if (metaLevel) {
 		device.value = metaLevel.value
@@ -216,7 +283,6 @@ ZWave.prototype.sendDeviceMetavalues = function(nodeId, metaName) {
 		device.value = 0
 	}
 	
-	// envoi en plusieurs morceaux car sinon ca peut prendre un gros volume si beaucoup de valeurs
 	for (valueName in node) {
 		if (!metaName || metaName == valueName) {
 			var metadata = node[valueName]
@@ -244,7 +310,9 @@ ZWave.prototype.sendDeviceMetavalues = function(nodeId, metaName) {
 ZWave.prototype.sendDeviceMetadatas = function(nodeId, metaName) {
 	var node = this.nodes[nodeId]
 	var device = new ZWave(this.server)
-	device.label = node.productinfo.product
+	if (node.productinfo) {
+		device.label = node.productinfo.product
+	}
 	device.mac = "zwave" + nodeId
 	
 	// envoi en plusieurs morceaux car sinon ca peut prendre un gros volume si beaucoup de valeurs
@@ -274,7 +342,11 @@ ZWave.prototype.sendDeviceMetadatas = function(nodeId, metaName) {
  * 
  */
 ZWave.prototype.isMetadata = function(metadata) { 
-	return !metadata.read_only && metadata.genre != 'user' && metadata.value_id
+	return !metadata.read_only 
+		&& metadata.genre != 'user' 
+		&& metadata.value_id
+		&& !this.isAloneValue(metadata)
+		&& !this.isDefaultValue(metadata)
 }
 
 
@@ -282,7 +354,36 @@ ZWave.prototype.isMetadata = function(metadata) {
  * 
  */
 ZWave.prototype.isMetavalue = function(metadata) {
-	return metadata.genre == 'user' && metadata.type != 'button'
+	return metadata.genre == 'user' 
+		&& metadata.type != 'button'
+		&& !this.isAloneValue(metadata)
+		&& !this.isDefaultValue(metadata)
+}
+
+
+/**
+ * 
+ */
+ZWave.prototype.isAloneValue = function(metadata) {
+	for (var idx=0; idx<ALONE_VALUES.length; idx++) {
+		if (metadata.label != null && metadata.label.toLowerCase() == ALONE_VALUES[idx].toLowerCase()) {
+			return true
+		}
+	}
+	return false
+}
+
+
+/**
+ * 
+ */
+ZWave.prototype.isDefaultValue = function(metadata) {
+	for (var idx=0; idx<DEFAULT_VALUES.length; idx++) {
+		if (metadata.label != null && metadata.label.toLowerCase() == DEFAULT_VALUES[idx].toLowerCase()) {
+			return true
+		}
+	}
+	return false
 }
 
 /**
