@@ -47,6 +47,10 @@ DeviceServer.prototype.listen = function() {
 	deviceServer.on('inclusion', function(driver) {
 		driver.startInclusion();
 	});
+	
+	deviceServer.on('exclusion', function(driver) {
+		driver.startExclusion();
+	});
 
 	deviceServer.on('write', function(driver, device) {
 		deviceServer.onWrite(driver, device);
@@ -70,18 +74,6 @@ DeviceServer.prototype.listen = function() {
 
 
 /**
- * Démarre l'inclusion automatique de nouveaux devices sur tous 
- * les protocoles enregistrés. L'arrêt de l'inclusion sera géré par 
- * timeout au niveau de chaque driver
- */
-DeviceServer.prototype.startInclusion = function() {
-	for (driverName in this.drivers) {
-		this.emit('inclusion', this.drivers[driverName]);
-	}
-}
-
-
-/**
  * Envoit d'un message aux devices
  * Le message est envoyé à tous les drivers et ceux qui peuvent 
  * le prendre en charge le traitent
@@ -92,7 +84,13 @@ DeviceServer.prototype.sendMessage = function(message, onerror) {
 	}
 	
 	if (message.header == "startInclusion") {
-		this.startInclusion();
+		for (driverName in this.drivers) {
+			this.emit('inclusion', this.drivers[driverName]);
+		}
+	} else if (message.header == "startExclusion") {
+		for (driverName in this.drivers) {
+			this.emit('exclusion', this.drivers[driverName]);
+		}
 	} else if (message.header == "config") {
 		for (driverName in this.drivers) {
 			this.emit('config', this.drivers[driverName], message.deviceMac, 

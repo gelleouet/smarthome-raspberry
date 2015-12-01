@@ -129,6 +129,14 @@ OneWire.prototype.startInclusion = function() {
 
 
 /**
+ * @see Device.startExclusion
+ */
+OneWire.prototype.startExclusion = function() {
+	
+};
+
+
+/**
  * @see config
  */
 OneWire.prototype.config = function(deviceMac, metadataName, metadataValue) {

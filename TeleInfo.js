@@ -114,6 +114,12 @@ TeleInfo.prototype.onData = function(data) {
 			teleinfo.mac = values.adco.value;
 			teleinfo.value = values.iinst.value;
 			teleinfo.metavalues = values;
+			
+			// ajout d'une valeur par défaut du adps
+			if (!teleinfo.metavalues.adps) {
+				teleinfo.metavalues.adps = {value: "0"}
+			}
+			
 			LOG.info(teleinfo, "Compteur " + teleinfo.mac + " poll new value !", teleinfo.value, teleinfo.adps)
 			
 			// supprime les valeurs redondantes car pas mappé sur server
@@ -156,6 +162,14 @@ TeleInfo.prototype.canWrite = function(device) {
  * @see Device.startInclusion
  */
 TeleInfo.prototype.startInclusion = function() {
+	
+};
+
+
+/**
+ * @see Device.startExclusion
+ */
+TeleInfo.prototype.startExclusion = function() {
 	
 };
 

@@ -165,6 +165,14 @@ Gpio.prototype.startInclusion = function() {
 
 
 /**
+ * @see Device.startExclusion
+ */
+Gpio.prototype.startExclusion = function() {
+	
+};
+
+
+/**
  * @see config
  */
 Gpio.prototype.config = function(deviceMac, metadataName, metadataValue) {

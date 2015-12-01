@@ -155,6 +155,14 @@ Arduino.prototype.startInclusion = function() {
 
 
 /**
+ * @see Device.startExclusion
+ */
+Arduino.prototype.startExclusion = function() {
+	
+};
+
+
+/**
  * @see config
  */
 Arduino.prototype.config = function(deviceMac, metadataName, metadataValue) {
