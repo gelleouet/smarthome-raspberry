@@ -115,6 +115,8 @@ ZWave.prototype.init = function() {
 		device.nodes[nodeid][value.value_id] = value
 		
 		if (device.networkScan && oldValue.value != value.value) {
+			LOG.info(device, "Value changed", value)
+			
 			if (device.isMetadata(value)) {
 				device.sendDeviceMetadatas(nodeid, value.value_id)
 			} else if (device.isAloneValue(value)) {
