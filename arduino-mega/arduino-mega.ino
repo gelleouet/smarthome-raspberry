@@ -261,6 +261,8 @@ void compteurMaxParSeconde(int idx) {
  * Le compteur est incrémenté à chaque fois
  */
 void compteur(int idx) {
+  //Serial.print("LOG interrupt ");
+  //Serial.println(idx);
   _compteurValues[idx]++;
 }
 

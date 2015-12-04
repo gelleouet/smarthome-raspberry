@@ -92,7 +92,7 @@ Arduino.prototype.init = function() {
 Arduino.prototype.onData = function(data) {
 	// Pratique : on récupère les logs de l'arduino
 	if (data.substr(0, 3) == 'LOG') {
-		LOG.info(this, 'Log arduino', data);
+		LOG.info(this, "Arduino says :", data);
 	} 
 	// Envoi d'un paquet de données (valeur, nouveau device, etc.)
 	else if (data.substr(0, 1) == '{') {
@@ -106,7 +106,7 @@ Arduino.prototype.onData = function(data) {
 			
 			this.server.emit('value', newDevice);
 		} catch (exception) {
-			LOG.error(this, "Cannot parse data", exception);
+			LOG.error(this, "Cannot parse data", exception, data);
 		}
 	}
 };
