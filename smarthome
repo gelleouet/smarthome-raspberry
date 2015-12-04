@@ -47,7 +47,8 @@ export LD_LIBRARY_PATH=/usr/local/lib
 do_upgrade()
 {
 	cd /opt/smarthome
-	git pull origin master
+	git fetch --all
+	git reset --hard origin/master
 }
 
 #

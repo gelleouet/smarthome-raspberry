@@ -20,12 +20,21 @@ apt-get install libssl-dev
 
 
 # Installation OpenZWave
+cd /opt
 git clone https://github.com/OpenZWave/open-zwave.git
+cd open-zwave
 make
 make install
 
 
+# Installation gpio-admin
+cd /opt
+git clone https://github.com/quick2wire/quick2wire-gpio-admin.git
+make install
+
+
 # Installation des modules NodeJS
+cd /opt
 npm install epoll
 npm install onoff
 npm install ws
