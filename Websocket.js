@@ -141,11 +141,11 @@ Websocket.prototype.subscribe = function() {
 Websocket.prototype.credential = function() {
 	LOG.info(this, "Credential loading...");
 	
-	if (credentials) {
-		this.username = credentials.username;
-		this.applicationKey = credentials.applicationKey;
-		this.applicationHost = credentials.applicationHost;
-		this.agentModel = credentials.agentModel;
+	if (this.credentials) {
+		this.username = this.credentials.username;
+		this.applicationKey = this.credentials.applicationKey;
+		this.applicationHost = this.credentials.applicationHost;
+		this.agentModel = this.credentials.agentModel;
 		
 		var network = os.networkInterfaces();
 		LOG.info(this, 'Find network interface', network);
@@ -156,7 +156,7 @@ Websocket.prototype.credential = function() {
 			// pas d'info mac sur nodejs v0.10. donc il faut le rajouter dans les credentials
 			if (!this.mac) {
 				LOG.info(this, 'No mac from os.networkInterfaces(). Try get it from credential...');
-				this.mac = credentials.mac; 
+				this.mac = this.credentials.mac; 
 			}
 			
 			if (!this.mac) {
