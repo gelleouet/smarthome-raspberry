@@ -15,7 +15,8 @@
 # Do NOT "set -e"
 
 # PATH should only include /usr/* if it runs after the mountnfs.sh script
-PATH=/sbin:/usr/sbin:/bin:/usr/bin:/usr/local/bin
+export LD_LIBRARY_PATH=/usr/local/lib
+export PATH=/sbin:/usr/sbin:/bin:/usr/bin:/usr/local/bin
 NODE_PATH=$NODE_PATH:/opt/node_modules
 DESC="SmartHome Raspberry Agent"
 NAME=smarthome
@@ -25,7 +26,6 @@ PIDFILE=/opt/smarthome/$NAME.pid
 LOGFILE=/opt/smarthome/$NAME.log
 SCRIPTNAME=/etc/init.d/$NAME
 
-export LD_LIBRARY_PATH=/usr/local/lib
 
 # Exit if the package is not installed
 [ -x "$DAEMON" ] || exit 0
