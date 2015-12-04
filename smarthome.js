@@ -14,7 +14,10 @@ console.log("-------------------------------------------------");
 
 
 // charge le fichier de config (synchrone)
-config.load(__dirname + '/smarthome.credentials')
+if (!config.load(__dirname + '/smarthome.credentials')) {
+	LOG.error(config, "Erreur reading config file")
+	exit()
+}
 
 
 //lancement du websocket avec son listener pour la gestion des messages

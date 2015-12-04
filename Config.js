@@ -28,6 +28,8 @@ util.inherits(Config, events.EventEmitter);
  * 
  */
 Config.prototype.load = function(configFile) {
+	LOG.info(this, "Loading...", configFile)
+	
 	try {
 		var buffer = fs.readFileSync(configFile);
 		this.credentials = JSON.parse(buffer);

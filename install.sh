@@ -53,7 +53,7 @@ echo "{ \"username\" : \"\",
   \"arduinoPort\": \"/dev/ttyUSB11\",
   \"zwavePort\": \"/dev/ttyUSB10\",
   \"teleinfoPort\": \"/dev/ttyAMA0\",
-  \"gpioPorts\": [\"gpio4\", \"gpio17\", \"gpio22\", \"gpio18\", \"gpio23\", \"gpio24\", \"gpio25\"],
+  \"gpioPorts\": [\"gpio17\", \"gpio18\", \"gpio22\", \"gpio23\", \"gpio24\", \"gpio25\", \"gpio27\"]
 }" > smarthome.credentials
 
 

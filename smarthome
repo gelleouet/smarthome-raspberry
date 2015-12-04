@@ -25,6 +25,8 @@ PIDFILE=/opt/smarthome/$NAME.pid
 LOGFILE=/opt/smarthome/$NAME.log
 SCRIPTNAME=/etc/init.d/$NAME
 
+export LD_LIBRARY_PATH=/usr/local/lib
+
 # Exit if the package is not installed
 [ -x "$DAEMON" ] || exit 0
 
