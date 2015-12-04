@@ -114,7 +114,7 @@ void sendValue(int pin, int value) {
    Serial.print(pin);
    Serial.print("\", \"value\":");
    Serial.print(value);
-   Serial.print("\", \"input\":");
+   Serial.print(", \"input\":");
    Serial.print(isInput(pin) ? "true" : "false");
    Serial.println("}");
 }
