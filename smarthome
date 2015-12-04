@@ -44,8 +44,8 @@ SCRIPTNAME=/etc/init.d/$NAME
 #
 do_upgrade()
 {
-	cd /opt
-	git clone https://github.com/gelleouet/smarthome-raspberry.git smarthome  
+	cd /opt/smarthome
+	git pull origin master
 }
 
 #
