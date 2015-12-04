@@ -52,13 +52,12 @@ util.inherits(Gpio, Device);
  * @see Device.init
  */
 Gpio.prototype.init = function() {
-	this.devices['gpio4'] = new Gpio(this.server, 'gpio4')
-	this.devices['gpio17'] = new Gpio(this.server, 'gpio17')
-	this.devices['gpio22'] = new Gpio(this.server, 'gpio22')
-	this.devices['gpio18'] = new Gpio(this.server, 'gpio18')
-	this.devices['gpio23'] = new Gpio(this.server, 'gpio23')
-	this.devices['gpio24'] = new Gpio(this.server, 'gpio24')
-	this.devices['gpio25'] = new Gpio(this.server, 'gpio25')
+	if (this.credentials.gpioPorts && this.credentials.gpioPorts.length) {
+		for (var idx=0; idx<this.credentials.gpioPorts.length; idx++) {
+			var portName = this.credentials.gpioPorts[idx]
+			this.devices[portName] = new Gpio(this.server, portName)
+		}
+	}
 	
 	for (deviceName in this.devices) {
 		this.devices[deviceName].doInit();

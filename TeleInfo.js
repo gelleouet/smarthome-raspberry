@@ -47,7 +47,8 @@ TeleInfo.prototype.init = function() {
 	if (!this.object) {
 		LOG.info(device, "Init (not connected)...");
 		
-		device.object = new serialport.SerialPort(TELEINFO_SERIAL_PORT, {
+		device.object = new serialport.SerialPort(
+			this.credentials && this.credentials.teleinfoPort ? this.credentials.teleinfoPort : TELEINFO_SERIAL_PORT, {
 			baudrate: 1200,
 			dataBits: 7,
 			parity: 'even',

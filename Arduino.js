@@ -13,7 +13,7 @@ var LOG = require("./Log").newInstance();
 
 var INPUT_CLASS = "smarthome.automation.deviceType.ContactSec"
 var OUTPUT_CLASS = "smarthome.automation.deviceType.BoutonOnOff"
-var ARDUINO_PORT = "/dev/ttyACM0";
+var ARDUINO_PORT = "/dev/ttyUSB11";
 var ARDUINO_TIMER = 10000; // 10 secondes
 
 
@@ -40,7 +40,8 @@ Arduino.prototype.init = function() {
 		LOG.info(device, "Init (not connected)...");
 		
 		try {
-			device.object = new serialport.SerialPort(ARDUINO_PORT, {
+			device.object = new serialport.SerialPort(
+				device.credentials && device.credentials.arduinoPort ? device.credentials.arduinoPort : ARDUINO_PORT, {
 				baudrate: 9600,
 				// Caractères séparateurs = fin de trame + début de trame
 				parser: serialport.parsers.readline('\n')

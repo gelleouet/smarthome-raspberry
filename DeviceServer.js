@@ -20,6 +20,7 @@ var DeviceServer = function DeviceServer() {
 	this.onMessage = null;
 	
 	this.drivers = []
+	this.credentials = null
 	
 	this.drivers['teleinfo'] = new TeleInfo(this);
 	this.drivers['onewire'] = new OneWire(this);
@@ -64,9 +65,11 @@ DeviceServer.prototype.listen = function() {
 		driver.config(deviceMac, metadataName, metadataValue);
 	});
 	
-	// Démarre tous les drivers
+	// Démarre tous les drivers en injectant la config
 	for (driverName in this.drivers) {
-		this.emit('init', this.drivers[driverName]);
+		var driver = this.drivers[driverName]
+		driver.credentials = this.credentials
+		this.emit('init', driver);
 	}
 
 	LOG.info(this, 'Start listening...');

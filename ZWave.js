@@ -12,7 +12,7 @@ var LOG = require("./Log").newInstance();
 
 
 var SMARTHOME_ZWAVE_CLASS = "smarthome.automation.deviceType.Zwave"
-var ZWAVE_PORT = "/dev/ttyUSB0";
+var ZWAVE_PORT = "/dev/ttyUSB10";
 var COMMAND_CLASS_CONFIGURATION = 112;
 var COMMAND_CLASS_SWITCH_BINARY = 37;
 var COMMAND_CLASS_SWITCH_MULTILEVEL = 38;
@@ -132,7 +132,7 @@ ZWave.prototype.init = function() {
 		LOG.info(device, "Value added", value)
 	});
 	
-	this.zwave.connect(ZWAVE_PORT);
+	this.zwave.connect(this.credentials && this.credentials.zwavePort ? this.credentials.zwavePort : ZWAVE_PORT);
 };
 
 

@@ -1,6 +1,7 @@
 var deviceServer = require('./DeviceServer').newInstance();
 var websocket = require('./Websocket').newInstance();
 var offline = require('./Offline').newInstance();
+var config = require('./Config').newInstance();
 var LOG = require("./Log").newInstance();
 
 // Le temps écoulé accepté pour renvoyer des messages à
@@ -12,15 +13,21 @@ console.log("Smarthome.start from dir", __dirname, new Date());
 console.log("-------------------------------------------------");
 
 
+// charge le fichier de config (synchrone)
+config.load(__dirname + '/smarthome.credentials')
+
+
 //lancement du websocket avec son listener pour la gestion des messages
 websocket.onMessage = onWebsocketMessage;
 websocket.onConnected = onWebsocketConnected;
+websocket.credentials = config.credentials;
 websocket.listen();
 
 
 // On fournit un listener pour le changement des valeurs
 //Démarre le serveur pour la lecture des devices
 deviceServer.onMessage = onDeviceMessage;
+deviceServer.credentials = config.credentials;
 deviceServer.listen();
 
 

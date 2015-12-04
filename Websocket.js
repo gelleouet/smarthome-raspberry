@@ -4,7 +4,6 @@
 var util = require('util');
 var events = require('events');
 var request = require('request');
-var fs = require('fs');
 var os = require('os');
 var WsWebSocket = require('ws');
 var uuid = require('node-uuid');
@@ -28,6 +27,7 @@ var Websocket = function Websocket() {
 	this.ws = null;
 	this.agentModel = null;
 	this.subscribing = false;
+	this.credentials = null
 	
 	this.onMessage = null;
 	this.onConnected = null;
@@ -140,52 +140,36 @@ Websocket.prototype.subscribe = function() {
  */
 Websocket.prototype.credential = function() {
 	LOG.info(this, "Credential loading...");
-	var buffer = null;
 	
-	try {
-		buffer = fs.readFileSync(__dirname + '/smarthome.credentials');
-	} catch (ex) {
-		LOG.error(this, 'Credential reading file', ex);
-		return false;
-	}
-	
-	if (buffer) {
-		var credentials = JSON.parse(buffer);
-			
-		if (credentials) {
-			this.username = credentials.username;
-			this.applicationKey = credentials.applicationKey;
-			this.applicationHost = credentials.applicationHost;
-			this.agentModel = credentials.agentModel;
-			
-			var network = os.networkInterfaces();
-			LOG.info(this, 'Find network interface', network);
-			
-			if (network.eth0) {
-				this.mac = network.eth0[0].mac;
-				this.address = network.eth0[0].address;
-				// pas d'info mac sur nodejs v0.10. donc il faut le rajouter dans les credentials
-				if (!this.mac) {
-					LOG.info(this, 'No mac from os.networkInterfaces(). Try get it from credential...');
-					this.mac = credentials.mac; 
-				}
-				
-				if (!this.mac) {
-					throw new Exception("Mac must be specified in credential file !");
-				}
-				
-				return this.username && this.applicationKey && this.applicationHost && this.mac;
-			} else {
-				LOG.error(this, 'No ethernet interface');
+	if (credentials) {
+		this.username = credentials.username;
+		this.applicationKey = credentials.applicationKey;
+		this.applicationHost = credentials.applicationHost;
+		this.agentModel = credentials.agentModel;
+		
+		var network = os.networkInterfaces();
+		LOG.info(this, 'Find network interface', network);
+		
+		if (network.eth0) {
+			this.mac = network.eth0[0].mac;
+			this.address = network.eth0[0].address;
+			// pas d'info mac sur nodejs v0.10. donc il faut le rajouter dans les credentials
+			if (!this.mac) {
+				LOG.info(this, 'No mac from os.networkInterfaces(). Try get it from credential...');
+				this.mac = credentials.mac; 
 			}
+			
+			if (!this.mac) {
+				throw new Exception("Mac must be specified in credential file !");
+			}
+			
+			return this.username && this.applicationKey && this.applicationHost && this.mac;
 		} else {
-			LOG.error(this, 'Error format JSON');
+			LOG.error(this, 'No ethernet interface');
 		}
 	} else {
-		LOG.error(this, 'Credential file is empty !');
+		LOG.error(this, 'Credentials empty !');
 	}
-	
-	return false;
 };
 
 

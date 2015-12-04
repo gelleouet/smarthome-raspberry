@@ -13,18 +13,19 @@ var events = require('events');
  * Constructor
  */
 var Device = function(mac, input, server) {
-	this.object = null;
 	this.mac = mac;	
 	this.input = input;
 	this.server = server;
 	this.lastRead = new Date();
 	
+	this.object = null;
 	this.label = null;
 	this.value = null;
 	this.params = null;
 	this.implClass = null;
 	this.metavalues = null;
 	this.metadatas = null;
+	this.credentials = null;
 };
 
 
