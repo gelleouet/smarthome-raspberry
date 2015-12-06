@@ -10,12 +10,10 @@ const int OUTLENGTH = sizeof(OUTPIN) / sizeof(int);
 
 const int COMPTEUR[] = {18,19,20,21};
 const int CPTLENGTH = sizeof(COMPTEUR) / sizeof(int);
-const onInterrupt COMPTEURISR[] = {compteur0, compteur1, compteur2, compteur3};
 volatile int* _compteurValues;
 
 const int COMPTEURSEC[] = {2,3};
 const int CPTSECLENGTH = sizeof(COMPTEURSEC) / sizeof(int);
-const onInterrupt COMPTEURSECISR[] = {compteurMaxParSeconde0, compteurMaxParSeconde1};
 volatile int* _compteurSecValues;
 volatile int* _compteurSecMaxValues;
 volatile unsigned long* _compteurSecLastTime;
@@ -39,7 +37,6 @@ void compteurMaxParSeconde0() {
 void compteurMaxParSeconde1() {
   compteurMaxParSeconde(1);
 }
-
 void compteur0() {
   compteur(0);
 }
@@ -55,6 +52,9 @@ void compteur2() {
 void compteur3() {
   compteur(3);
 }
+
+const onInterrupt COMPTEURISR[] = {compteur0, compteur1, compteur2, compteur3};
+const onInterrupt COMPTEURSECISR[] = {compteurMaxParSeconde0, compteurMaxParSeconde1};
 
 void setup() {
   // Creation des buffers de values
@@ -133,7 +133,8 @@ void loop() {
   
     if ((firstRead == secondRead) && (firstRead != _inValues[idx])) {
       _inValues[idx] = firstRead;
-      sendValue(INPIN[idx], _inValues[idx]);
+      // attention les pins en in  sont inversés (high -> 0, low -> 1)
+      sendValue(INPIN[idx], _inValues[idx] == HIGH ? 0 : 1);
     }
   }
 
@@ -158,9 +159,13 @@ void sendCompteurValues() {
   long ellapse = timer - _lastSendTimer;
 
   if (ellapse >= SEND_TIMER) {
+    Serial.println("LOG Send compteur values");
+    
     // envoi puis reset des valeurs
     for (int idx=0; idx<CPTSECLENGTH; idx++) {
-      sendValue(COMPTEURSEC[idx], _compteurSecMaxValues[idx]);
+      if (_compteurSecMaxValues[idx] > 0) {
+        sendValue(COMPTEURSEC[idx], _compteurSecMaxValues[idx]);
+      }
       
       _compteurSecValues[idx] = 0;
       _compteurSecMaxValues[idx] = 0;
@@ -168,7 +173,9 @@ void sendCompteurValues() {
     }
 
     for (int idx=0; idx<CPTLENGTH; idx++) {
-       sendValue(COMPTEUR[idx], _compteurValues[idx]);
+      if (_compteurValues[idx] > 0) {
+        sendValue(COMPTEUR[idx], _compteurValues[idx]);
+      }
       _compteurValues[idx] = 0;
     }
 
