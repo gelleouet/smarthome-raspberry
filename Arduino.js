@@ -73,6 +73,7 @@ Arduino.prototype.init = function() {
 	
 	// création d'une routine pour surveiller l'état du driver
 	// et le reconnecter automatiquement
+	// IMPORTANT : a ne faire qu'une fois !!
 	if (!this.timerCreate) {
 		this.timerCreate = true;
 		setInterval(function() {
