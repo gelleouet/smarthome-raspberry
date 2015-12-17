@@ -82,13 +82,13 @@ ZWave.prototype.init = function() {
 	});
 	
 	this.zwave.on('node added', function(nodeid) {
-		LOG.info(device, "Found new device ", nodeid);
+		LOG.info(device, "node added ", nodeid);
 		device.nodes[nodeid] = {}
 	});
 	
 	this.zwave.on('node ready', function(nodeid, nodeinfo) {
 		device.nodes[nodeid]['productinfo'] = nodeinfo
-		LOG.info(device, "Device " + nodeid + " is ready ", nodeinfo);
+		LOG.info(device, "node ready " + nodeid, nodeinfo);
 		device.sendDeviceMetavalues(nodeid)
 		device.sendDeviceMetadatas(nodeid)
 		device.sendDeviceAloneValues(nodeid)
@@ -99,11 +99,23 @@ ZWave.prototype.init = function() {
 	});
 	
 	this.zwave.on('node naming', function(nodeid, nodeinfo) {
-		LOG.info(device, "Device " + nodeid + " naming ", nodeinfo);
+		LOG.info(device, "node naming " + nodeid, nodeinfo);
 	});
 
 	this.zwave.on('node available', function(nodeid, nodeinfo) {
-		LOG.info(device, "Device " + nodeid + " available ", nodeinfo);
+		LOG.info(device, "node available " + nodeid, nodeinfo);
+	});
+	
+	this.zwave.on('node event', function(nodeid, event, value) {
+		LOG.info(device, "node event " + nodeid, [event, value])
+		
+		if (device.isMetadata(value)) {
+			device.sendDeviceMetadatas(nodeid, value.value_id)
+		} else if (device.isAloneValue(value)) {
+			device.sendDeviceAloneValues(nodeid, value.value_id)
+		} else {
+			device.sendDeviceMetavalues(nodeid, value.value_id)
+		}
 	});
 	
 	this.zwave.on('value refreshed', function(nodeid, comclass, value) {

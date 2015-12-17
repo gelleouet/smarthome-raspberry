@@ -83,16 +83,16 @@ OneWire.prototype.read = function() {
 							var convertValue = Math.round(+device.value / 100.) / 10.;
 							
 							// conversion à 0.5  près
-							var intPart = parseInt(convertValue);
-							var decimalPart = convertValue - intPart;
-							
-							if (decimalPart < 0.25) {
-								convertValue = intPart;
-							} else if (decimalPart < 0.75) {
-								convertValue = intPart + 0.5;
-							} else {
-								convertValue = intPart + 1;
-							}
+//							var intPart = parseInt(convertValue);
+//							var decimalPart = convertValue - intPart;
+//							
+//							if (decimalPart < 0.25) {
+//								convertValue = intPart;
+//							} else if (decimalPart < 0.75) {
+//								convertValue = intPart + 0.5;
+//							} else {
+//								convertValue = intPart + 1;
+//							}
 							
 							LOG.info(device, 'Sonde ' + device.mac + ' detected !', [device.value, convertValue]);
 							device.value = convertValue;
