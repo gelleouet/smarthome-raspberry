@@ -10,7 +10,7 @@ int _idxBuffer = 0;
 volatile int _compteur = 0;
 volatile int _compteurParSeconde = 0;
 volatile int _maxCompteurParSeconde = 0;
-unsigned long _lastCompteurParSeconde = 0;
+volatile unsigned long _lastCompteurParSeconde = 0;
 unsigned long _lastSendTimer = 0;
 
 
@@ -58,14 +58,20 @@ void sendValue(int pin, int value) {
 
 /**
  * Vérifie le timer pour l'envoi de données
+ * N'envoit les données que si valeur présente
  */
 void checkSendTimer() {
   unsigned long timer = millis();
   long ellapse = timer - _lastSendTimer;
 
-  if (ellapse >= SEND_TIMER) {
-    sendValue(PIN_ISR_COMPTEURSEC, _maxCompteurParSeconde);
-    sendValue(PIN_ISR_COMPTEUR, _compteur);
+  if (ellapse >= SEND_TIMER || _lastSendTimer > timer) {
+    if (_maxCompteurParSeconde > 0) {
+      sendValue(PIN_ISR_COMPTEURSEC, _maxCompteurParSeconde);
+    }
+
+    if (_compteur > 0) {
+      sendValue(PIN_ISR_COMPTEUR, _compteur);
+    }
 
     // reset des valeurs
     _compteur = 0;
@@ -153,7 +159,8 @@ void compteurMaxParSeconde() {
   long ellapse = timer - _lastCompteurParSeconde;
 
   // reset toutes les secondes et sauvegarde du max
-  if (ellapse >= 1000) {
+  // test aussi si le timer est revenu à 0 après avoit atteint les 50J
+  if (ellapse >= 1000 || _lastCompteurParSeconde > timer) {
     if (_compteurParSeconde > _maxCompteurParSeconde) {
        _maxCompteurParSeconde = _compteurParSeconde;
     }

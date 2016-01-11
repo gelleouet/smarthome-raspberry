@@ -33,6 +33,8 @@ var MAPGPIO = {
 	'gpio7': 26,
 }
 var DEBOUNCING = 100;
+// envoi des valeurs counter toutes les 5min
+var READ_IMPULS_TIMER = 300000;
 
 
 /**
@@ -43,6 +45,11 @@ var Gpio = function Gpio(server, mac) {
 	Device.call(this, mac, true, server);
 	this.implClass = SMARTHOME_CLASS
 	this.devices = []
+	this.impulsMaxSec = null
+	this.impuls = null
+	this.counter = 0
+	this.counterMax = 0
+	this.lastImpuls = null
 };
 
 util.inherits(Gpio, Device);
@@ -52,15 +59,13 @@ util.inherits(Gpio, Device);
  * @see Device.init
  */
 Gpio.prototype.init = function() {
-	if (this.credentials.gpioPorts && this.credentials.gpioPorts.length) {
-		for (var idx=0; idx<this.credentials.gpioPorts.length; idx++) {
-			var portName = this.credentials.gpioPorts[idx]
-			this.devices[portName] = new Gpio(this.server, portName)
+	if (this.credentials.gpioPorts) {
+		for (deviceName in this.credentials.gpioPorts) {
+			this.devices[deviceName] = new Gpio(this.server, deviceName)
+			this.devices[deviceName].impulsMaxSec = this.credentials.gpioPorts[deviceName].impulsMaxSec
+			this.devices[deviceName].impuls = this.credentials.gpioPorts[deviceName].impuls
+			this.devices[deviceName].doInit();
 		}
-	}
-	
-	for (deviceName in this.devices) {
-		this.devices[deviceName].doInit();
 	}
 }
 
@@ -93,18 +98,13 @@ Gpio.prototype.doInit = function() {
 			
 			device.object.watch(function(err, value) {
 				if (!err) {
-					var now = new Date();
-					
-					// gestion du debouncing (evite les rebonds lors de l'appui d'un BP
-					// toute valeur recue en moins de 100ms est ignorée
-					if ((now.getTime() - device.lastRead.getTime()) > DEBOUNCING) { 
-						device.lastRead = now;
-						
-						if (device.value != value) {
-							device.value = value;
-							LOG.info(device, device.mac + ' poll new value', device.value);
-							device.server.emit('value', device);
-						}
+					// branchement sur les différentes lectures
+					if (device.impulsMaxSec) {
+						device.impulsMaxSecRead(value)
+					} else if (device.impuls) {
+						device.impulsRead(value)
+					} else {
+						device.changeRead(value)
 					}
 				} else {
 					LOG.error(device, 'Watch value', device.mac, err);
@@ -113,6 +113,88 @@ Gpio.prototype.doInit = function() {
 		});
 	}
 };
+
+
+/**
+ * Déclenche l'envoi de la valeur à chaque appel
+ * Gestion du debounce
+ */
+Gpio.prototype.changeRead = function(value) {
+	var now = new Date();
+	
+	// gestion du debouncing (evite les rebonds lors de l'appui d'un BP
+	// toute valeur recue en moins de 100ms est ignorée
+	if ((now.getTime() - this.lastRead.getTime()) > DEBOUNCING) { 
+		this.lastRead = now;
+		
+		if (this.value != value) {
+			this.value = value;
+			LOG.info(this, this.mac + ' poll new value', this.value);
+			device.server.emit('value', this);
+		}
+	}
+}
+
+
+/**
+ * Compteur d'impulsion des valeurs à 1
+ * Réinitialise le compteur toutes les impulsMaxSec secondes
+ * Sur toute la période de lecture, ne prend que le max
+ */
+Gpio.prototype.impulsMaxSecRead = function(value) {
+	if (value != 1) {
+		return
+	}
+	
+	var now = new Date()
+	
+	// init du compteur à chaque démarrage ou période
+	if (!device.lastImpuls || ((now.getTime() - this.lastImpuls.getTime()) > this.impulsMaxSec)) {
+		// à partir de la 2e lecture, on enregistre le max
+		if (device.lastImpuls) {
+			if (device.counter > device.counterMax) {
+				device.counterMax = device.counter
+			}
+		}
+		device.lastImpuls = now
+		device.counter = 0
+	}
+	
+	device.counter++
+	
+	// envoi de la valeur à chaque période et reset du compteur max
+	if ((now.getTime() - this.lastRead.getTime()) > READ_IMPULS_TIMER) {
+		this.lastRead = now
+		this.value = this.counterMax
+		this.counterMax = 0
+		LOG.info(this, this.mac + ' poll new value', this.value);
+		device.server.emit('value', this);
+	}
+}
+
+
+/**
+ * Compteur d'impulsion des valeurs à 1
+ * Incrémente le compteur et envoit la valeur à chaque période de lecture
+ */
+Gpio.prototype.impulsRead = function(value) {
+	if (value != 1) {
+		return
+	}
+	
+	var now = new Date()
+	
+	device.counter++
+	
+	// envoi de la valeur à chaque période et reset du compteur
+	if ((now.getTime() - this.lastRead.getTime()) > READ_IMPULS_TIMER) {
+		this.lastRead = now
+		this.value = this.counter
+		this.counter = 0
+		LOG.info(this, this.mac + ' poll new value', this.value);
+		device.server.emit('value', this);
+	}
+}
 
 
 /**
