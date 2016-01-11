@@ -12,7 +12,6 @@ var LOG = require("./Log").newInstance();
 
 
 var SMARTHOME_CLASS = "smarthome.automation.deviceType.TeleInformation"
-var TELEINFO_SERIAL_PORT = "/dev/ttyAMA0";
 var TELEINFO_CHECK_TIMER = 10000; // 10 secondes
 var TELEINFO_VALUE_TIMER = 300000; // 5 minutes
 // Timer pour l'envoide valeurs si dépassement puissance
@@ -44,11 +43,15 @@ util.inherits(TeleInfo, Device);
 TeleInfo.prototype.init = function() {
 	var device = this;
 	
+	if (!device.credentials || !device.credentials.teleinfoPort) {
+		LOG.error(device, "Teleinfo init cancel : port not defined !")
+		return
+	}
+	
 	if (!this.object) {
 		LOG.info(device, "Init (not connected)...");
 		
-		device.object = new serialport.SerialPort(
-			this.credentials && this.credentials.teleinfoPort ? this.credentials.teleinfoPort : TELEINFO_SERIAL_PORT, {
+		device.object = new serialport.SerialPort(this.credentials.teleinfoPort, {
 			baudrate: 1200,
 			dataBits: 7,
 			parity: 'even',

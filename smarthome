@@ -23,7 +23,7 @@ NAME=smarthome
 DAEMON="/usr/local/bin/node"
 DAEMON_ARGS="/opt/smarthome/smarthome.js"
 PIDFILE=/opt/smarthome/$NAME.pid
-LOGFILE=/opt/smarthome/$NAME.log
+LOGFILE=/var/log/$NAME.log
 SCRIPTNAME=/etc/init.d/$NAME
 
 
