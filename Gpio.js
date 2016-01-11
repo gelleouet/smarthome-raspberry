@@ -79,22 +79,32 @@ Gpio.prototype.doInit = function() {
 	var correctMac = device.mac.replace('gpio', '');
 	
 	if (device.input) {
+		var isImpuls = device.impulsMaxSec || device.impuls
+		
 		// gestion du pulldown pour le input sinon le device est flottant.
 		// La lib onoff ne le gère pas mais par contre, elle gère le cas ou le pin est déjà exporté		
 		pigpio.open(MAPGPIO[device.mac], "input pulldown", function(error) {
 			if (error) {
 				LOG.error(device, "pi-gpio error !", error);
 			} else {
-				LOG.info(device, 'input pulldown ok', device.mac)
+				LOG.info(device, 'input pulldown ok', [device.mac, device.impulsMaxSec, device.impuls])
 			}
 			
 			// dans tous les cas, on continue car l'export peut ne pas marcher si device déjà exportée
-			device.object = new gpio(correctMac, 'in', 'both');
+			// branchement des interruptions : pour les compteurs on ne prend en compte que les changements de 0 à 1
+			// pour les autres on prend tous les changements
+			if (isImpuls) {
+				device.object = new gpio(correctMac, 'in', 'rising');
+			} else {
+				device.object = new gpio(correctMac, 'in', 'both');
+			}
 			
 			// 1ere lecture pour initialiser la bonne valeur
-			device.value = device.object.readSync();
-			LOG.info(device, "Reading first value...", [device.mac, device.value]);
-			device.server.emit("value", device);
+			if (!isImpuls) {
+				device.value = device.object.readSync();
+				LOG.info(device, "Reading first value...", [device.mac, device.value]);
+				device.server.emit("value", device);
+			}
 			
 			device.object.watch(function(err, value) {
 				if (!err) {
@@ -130,7 +140,7 @@ Gpio.prototype.changeRead = function(value) {
 		if (this.value != value) {
 			this.value = value;
 			LOG.info(this, this.mac + ' poll new value', this.value);
-			device.server.emit('value', this);
+			this.server.emit('value', this);
 		}
 	}
 }
@@ -142,11 +152,8 @@ Gpio.prototype.changeRead = function(value) {
  * Sur toute la période de lecture, ne prend que le max
  */
 Gpio.prototype.impulsMaxSecRead = function(value) {
-	if (value != 1) {
-		return
-	}
-	
 	var now = new Date()
+	var device = this
 	
 	// init du compteur à chaque démarrage ou période
 	if (!device.lastImpuls || ((now.getTime() - this.lastImpuls.getTime()) > this.impulsMaxSec)) {
@@ -163,12 +170,12 @@ Gpio.prototype.impulsMaxSecRead = function(value) {
 	device.counter++
 	
 	// envoi de la valeur à chaque période et reset du compteur max
-	if ((now.getTime() - this.lastRead.getTime()) > READ_IMPULS_TIMER) {
+	if ((now.getTime() - this.lastRead.getTime()) > 30000/*READ_IMPULS_TIMER*/) {
 		this.lastRead = now
 		this.value = this.counterMax
 		this.counterMax = 0
 		LOG.info(this, this.mac + ' poll new value', this.value);
-		device.server.emit('value', this);
+		//device.server.emit('value', this);
 	}
 }
 
