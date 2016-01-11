@@ -157,7 +157,9 @@ ZWave.prototype.init = function() {
  */
 ZWave.prototype.free = function() {
 	LOG.info(this, "Free")
-	this.zwave.disconnect();
+	if (this.zwave) {
+		this.zwave.disconnect();
+	}
 };
 
 
