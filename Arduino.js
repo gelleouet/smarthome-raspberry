@@ -13,7 +13,6 @@ var LOG = require("./Log").newInstance();
 
 var INPUT_CLASS = "smarthome.automation.deviceType.ContactSec"
 var OUTPUT_CLASS = "smarthome.automation.deviceType.BoutonOnOff"
-var ARDUINO_PORT = "/dev/ttyUSB11";
 var ARDUINO_TIMER = 10000; // 10 secondes
 
 
@@ -36,12 +35,16 @@ util.inherits(Arduino, Device);
 Arduino.prototype.init = function() {
 	var device = this;
 	
+	if (!device.credentials || !device.credentials.arduinoPort)  {
+		LOG.error(device, "Arduino init cancel : port not defined !")
+		return
+	}
+	
 	if (!device.object) {
 		LOG.info(device, "Init (not connected)...");
 		
 		try {
-			device.object = new serialport.SerialPort(
-				device.credentials && device.credentials.arduinoPort ? device.credentials.arduinoPort : ARDUINO_PORT, {
+			device.object = new serialport.SerialPort(device.credentials.arduinoPort, {
 				baudrate: 9600,
 				// Caractères séparateurs = fin de trame + début de trame
 				parser: serialport.parsers.readline('\n')
@@ -70,7 +73,7 @@ Arduino.prototype.init = function() {
 			LOG.error(device, "Serial port error", exception)
 		}
 	}
-	
+
 	// création d'une routine pour surveiller l'état du driver
 	// et le reconnecter automatiquement
 	// IMPORTANT : a ne faire qu'une fois !!

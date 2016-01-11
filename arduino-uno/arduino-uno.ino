@@ -65,10 +65,11 @@ void checkSendTimer() {
   unsigned long timer = millis();
   long ellapse = timer - _lastSendTimer;
 
-  if (ellapse >= SEND_TIMER) {
+  if (ellapse >= SEND_TIMER || _lastSendTimer > timer) {
     if (_maxCompteurParSeconde > 0) {
       sendValue(PIN_ISR_COMPTEURSEC, _maxCompteurParSeconde);
     }
+
     if (_compteur > 0) {
       sendValue(PIN_ISR_COMPTEUR, _compteur);
     }
@@ -162,7 +163,8 @@ void compteurMaxParSeconde() {
   long ellapse = timer - _lastCompteurParSeconde;
 
   // reset toutes les secondes et sauvegarde du max
-  if (ellapse >= 1000) {
+  // test aussi si le timer est revenu à 0 après avoit atteint les 50J
+  if (ellapse >= 1000 || _lastCompteurParSeconde > timer) {
     if (_compteurParSeconde > _maxCompteurParSeconde) {
        _maxCompteurParSeconde = _compteurParSeconde;
     }

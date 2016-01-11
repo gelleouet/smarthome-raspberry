@@ -22,7 +22,7 @@ var Log = function() {
  * @param message
  */
 Log.prototype.info = function(object, message, data) {
-	if (data) {
+	if (data != null) {
 		console.log(this.build(object, message, "INFO"), data);
 	} else {
 		console.log(this.build(object, message, "INFO"));

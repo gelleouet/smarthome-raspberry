@@ -8,12 +8,9 @@
 cd /opt
 
 
-# Installation NodeJS
+# Installation paquets Linux
 curl -sLS https://apt.adafruit.com/add | sudo bash
 apt-get install node
-
-
-# Installation paquets Linux
 apt-get install libudev-dev
 apt-get install build-essential
 apt-get install libssl-dev
@@ -54,7 +51,8 @@ touch smarthome.credentials
 # get mac from eth0
 MAC=`ifconfig eth0 | grep "HWaddr" | awk -F " " '{print $5}'`
 
-echo "{ \"username\" : \"\",
+echo "
+{ \"username\" : \"\",
   \"applicationKey\" : \"\",
   \"applicationHost" : \"https://www.jdevops.com/smarthome\",
   \"agentModel\" : \"Raspberry B+\",
@@ -63,12 +61,33 @@ echo "{ \"username\" : \"\",
   \"zwavePort\": \"/dev/ttyUSB10\",
   \"teleinfoPort\": \"/dev/ttyAMA0\",
   \"gpioPorts\": [\"gpio17\", \"gpio18\", \"gpio22\", \"gpio23\", \"gpio24\", \"gpio25\", \"gpio27\"]
-}" > smarthome.credentials
+}
+" > smarthome.credentials
 
 
 # Démarrage auto au reboot du PI
 sudo chmod +x smarthome
 sudo cp smarthome /etc/init.d/
 sudo update-rc.d smarthome defaults
+
+
+# Rotation des logs
+echo "
+/var/log/smarthome.log {
+        size 5M
+        missingok
+        rotate 10
+        compress
+        delaycompress
+        notifempty
+		copytruncate
+}
+" > /etc/logrotate.d/smarthome
+
+
+# Installation d'un serveur Web pour récupérer les logs
+# Le samba est utilisé pour accéder au rasp via son hostname (ex : http://raspberyypi)
+apt-get install nginx
+apt-get install samba
 
 
