@@ -70,7 +70,7 @@ Websocket.prototype.listen = function() {
 			}
 		} else {
 			// envoi d'un message périodique pour tester la validité du websocket
-			websocket.sendMessage({header: 'Hello'});
+			//websocket.sendMessage({header: 'Hello'});
 		}
 	}, WEBSOCKET_TIMER);
 }
