@@ -68,6 +68,10 @@ Websocket.prototype.listen = function() {
 			} else {
 				LOG.info(websocket, 'Channel is closed but current subscribing');
 			}
+		} else {
+			// envoi d'un message périodique pour tester la validité du websocket
+			websocket.sendMessage({header: 'Hello'});
+			console.log('test websocket')
 		}
 	}, WEBSOCKET_TIMER);
 }
