@@ -167,9 +167,7 @@ void sendCompteurValues() {
         sendValue(COMPTEURSEC[idx], _compteurSecMaxValues[idx]);
       }
       
-      _compteurSecValues[idx] = 0;
       _compteurSecMaxValues[idx] = 0;
-      _compteurSecLastTime[idx] = 0;
     }
 
     for (int idx=0; idx<CPTLENGTH; idx++) {
@@ -252,7 +250,7 @@ void compteurMaxParSeconde(int idx) {
   long ellapse = timer - _compteurSecLastTime[idx];
 
   // reset toutes les secondes et sauvegarde du max
-  if (ellapse >= 1000) {
+  if (ellapse >= 5000) {
     if (_compteurSecValues[idx] > _compteurSecMaxValues[idx]) {
        _compteurSecMaxValues[idx] = _compteurSecValues[idx];
     }

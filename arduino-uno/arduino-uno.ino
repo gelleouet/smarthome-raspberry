@@ -29,8 +29,8 @@ void setup() {
   // les pins interrupt sont congigurés en entrée
   pinMode(PIN_ISR_COMPTEURSEC, INPUT_PULLUP);
   pinMode(PIN_ISR_COMPTEUR, INPUT_PULLUP);
-  attachInterrupt(digitalPinToInterrupt(PIN_ISR_COMPTEURSEC), compteurMaxParSeconde, LOW);
-  attachInterrupt(digitalPinToInterrupt(PIN_ISR_COMPTEUR), compteur, LOW);
+  attachInterrupt(digitalPinToInterrupt(PIN_ISR_COMPTEURSEC), compteurMaxParSeconde, FALLING);
+  attachInterrupt(digitalPinToInterrupt(PIN_ISR_COMPTEUR), compteur, FALLING);
 
   resetBuffer();
   
@@ -58,7 +58,8 @@ void sendValue(int pin, int value) {
 
 /**
  * Vérifie le timer pour l'envoi de données
- * N'envoit les données que si valeur présente
+ * N'nevoit les données que si > 0
+ * Pas d'intéret pour un compteur si = 0
  */
 void checkSendTimer() {
   unsigned long timer = millis();
@@ -153,6 +154,9 @@ void parseBuffer() {
  * Interrupt pour les compteurs max par seconde
  * Le compteur est réinitialisé toutes les secondes
  * et seule la valeur max est conservée
+ * 
+ * En fait la mesure est faite sur 5s pour avoir une meilleure définition
+ * quand les valeurs sont petites
  */
 void compteurMaxParSeconde() {
   unsigned long timer = millis();
