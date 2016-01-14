@@ -61,7 +61,7 @@ Websocket.prototype.listen = function() {
 	websocket.emit('subscribe');
 	
 	setInterval(function() {
-		if (!websocket.ws || websocket.ws == WsWebSocket.CLOSED) {
+		if (!websocket.ws || websocket.ws.readyState == WsWebSocket.CLOSED || websocket.ws.readyState == WsWebSocket.CLOSING) {
 			if (!websocket.subscribing) {
 				LOG.info(websocket, 'Channel is closed : try reconnecting...');
 				websocket.emit('subscribe');
