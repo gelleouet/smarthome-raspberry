@@ -6,14 +6,20 @@ const int MAXBUFFER = 16;
 const unsigned long SEND_TIMER = 60000 * 5; // toutes les 5 minutes
 
 char _buffer[MAXBUFFER];
-int _idxBuffer = 0;
+volatile int _idxBuffer = 0;
+volatile boolean _bufferFilled = true;
 volatile int _compteur = 0;
 volatile int _compteurParSeconde = 0;
 volatile int _maxCompteurParSeconde = 0;
 volatile unsigned long _lastCompteurParSeconde = 0;
+volatile unsigned long _lastCompteurMaxParSeconde = 0;
+volatile unsigned long _lastCompteur = 0;
 unsigned long _lastSendTimer = 0;
 
 
+/**
+ * Préparation du programmme
+ */
 void setup() {
   // tous les pins sont configurés en output avec un état HAUT
   // utile pour les cartes relais qui sont inversées
@@ -65,7 +71,7 @@ void checkSendTimer() {
   unsigned long timer = millis();
   long ellapse = timer - _lastSendTimer;
 
-  if (ellapse >= SEND_TIMER || _lastSendTimer > timer) {
+  if (ellapse > SEND_TIMER || _lastSendTimer > timer) {
     if (_maxCompteurParSeconde > 0) {
       sendValue(PIN_ISR_COMPTEURSEC, _maxCompteurParSeconde);
     }
@@ -82,24 +88,46 @@ void checkSendTimer() {
 }
 
 
+/**
+ * Point d'entrée principal du programme
+ */
 void loop() {
-  if (Serial.available()) {
-    if (readBuffer()) {
-      parseBuffer();
-      resetBuffer();
-    }
+  if (_bufferFilled) {
+    parseBuffer();
+    resetBuffer();
   }
 
   checkSendTimer();
 }
 
 
-void resetBuffer() {
-  memset(_buffer, 0, MAXBUFFER);
-  _idxBuffer = 0;
+/**
+ * Interruption déclenchée dès que le buffer Série
+ * contient des données
+ */
+void serialEvent() {
+  while (Serial.available()) {
+    if (readBuffer()) {
+      _bufferFilled = true;
+    }
+  }
 }
 
 
+/**
+ * Réinitialise le buffer Série
+ */
+void resetBuffer() {
+  memset(_buffer, 0, MAXBUFFER);
+  _idxBuffer = 0;
+  _bufferFilled = false;
+}
+
+
+/**
+ * Lecture du buffer sé&rie caractère par caractère
+ * Renvoit true dès qu'un retour chariot est détecté
+ */
 boolean readBuffer() {
    _buffer[_idxBuffer] = (char) Serial.read();
 
@@ -118,6 +146,9 @@ boolean readBuffer() {
 }
 
 
+/**
+ * Parse le buffer qui doit être au format pin:valeur
+ */
 void parseBuffer() {
   char *split = strtok(_buffer, ":");
   int pin = -1;
@@ -138,13 +169,9 @@ void parseBuffer() {
     // les valeurs sont inversées par rapport à la normale
     // sauf pour la led de test
     if (valeur == 0) {
-      digitalWrite(pin, pin == 13 ? LOW : HIGH);
-      Serial.print("LOG Write HIGH to ");
-      Serial.println(pin);      
+      digitalWrite(pin, pin == 13 ? LOW : HIGH);    
     } else if (valeur == 1) {
-      digitalWrite(pin, pin == 13 ? HIGH : LOW);
-      Serial.print("LOG Write LOW to ");
-      Serial.println(pin);      
+      digitalWrite(pin, pin == 13 ? HIGH : LOW);     
     }
   }
 }
@@ -154,24 +181,36 @@ void parseBuffer() {
  * Interrupt pour les compteurs max par seconde
  * Le compteur est réinitialisé toutes les secondes
  * et seule la valeur max est conservée
- * 
- * En fait la mesure est faite sur 5s pour avoir une meilleure définition
- * quand les valeurs sont petites
  */
 void compteurMaxParSeconde() {
   unsigned long timer = millis();
+
+  // 1er calcul pour le debounce
   long ellapse = timer - _lastCompteurParSeconde;
+
+  // gestion du debounce à 1ms
+  if (ellapse <= 1) {
+    return;
+  }
+
+  // 2e calcul pour le compteur max toutes les secondes
+  ellapse = timer - _lastCompteurMaxParSeconde;
 
   // reset toutes les secondes et sauvegarde du max
   // test aussi si le timer est revenu à 0 après avoit atteint les 50J
-  if (ellapse >= 1000 || _lastCompteurParSeconde > timer) {
-    if (_compteurParSeconde > _maxCompteurParSeconde) {
-       _maxCompteurParSeconde = _compteurParSeconde;
-    }
+  if (ellapse > 2000 || _lastCompteurMaxParSeconde > timer) {
+    // attention si la période est trop longue pour ne pas fausser les résultats
+    //if (ellapse < 2005) {
+      if (_compteurParSeconde > _maxCompteurParSeconde) {
+         _maxCompteurParSeconde = _compteurParSeconde;
+      }
+    //}
     _compteurParSeconde = 0;
-    _lastCompteurParSeconde = timer;
+    _lastCompteurMaxParSeconde = timer;
   }
+  
   _compteurParSeconde++;
+  _lastCompteurParSeconde = timer;
 }
 
 
@@ -180,6 +219,15 @@ void compteurMaxParSeconde() {
  * Le compteur est incrémenté à chaque fois
  */
 void compteur() {
+  unsigned long timer = millis();
+  long ellapse = timer - _lastCompteur;
+
+  // gestion du debounce à 1ms
+  if (ellapse <= 1) {
+    return;
+  }
+  
   _compteur++;
+  _lastCompteur = timer;
 }
 
