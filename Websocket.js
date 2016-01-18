@@ -14,6 +14,7 @@ require('ssl-root-cas/latest')
 
 var WEBSOCKET_TIMER = 5000; // 5 secondes
 var HTTP_TIMEOUT = 10000; // 10 secondes
+var WEBSOCKET_PING = 300000; // toutes les 5 minutes
 
 /**
  * Constructeur Websocket
@@ -27,7 +28,8 @@ var Websocket = function Websocket() {
 	this.ws = null;
 	this.agentModel = null;
 	this.subscribing = false;
-	this.credentials = null
+	this.credentials = null;
+	this.lastSendMessage = new Date();
 	
 	this.onMessage = null;
 	this.onConnected = null;
@@ -61,12 +63,22 @@ Websocket.prototype.listen = function() {
 	websocket.emit('subscribe');
 	
 	setInterval(function() {
-		if (!websocket.ws || websocket.ws == WsWebSocket.CLOSED) {
+		if (!websocket.ws || websocket.ws.readyState == WsWebSocket.CLOSED || websocket.ws.readyState == WsWebSocket.CLOSING) {
 			if (!websocket.subscribing) {
 				LOG.info(websocket, 'Channel is closed : try reconnecting...');
 				websocket.emit('subscribe');
 			} else {
 				LOG.info(websocket, 'Channel is closed but current subscribing');
+			}
+		} else {
+			// le websocket est connecté mais si pas d'activité, la connexion peut être perdue
+			// envoi d'un message fictif toutes les WEBSOCKET_PING
+			var now = new Date();
+			
+			if ((now.getTime() - websocket.lastSendMessage.getTime()) > WEBSOCKET_PING) {
+				websocket.sendMessage({header: 'Hello'});
+				websocket.lastSendMessage = now;
+				LOG.info(websocket, 'Send ping message');
 			}
 		}
 	}, WEBSOCKET_TIMER);
@@ -215,6 +227,7 @@ Websocket.prototype.sendMessage = function(message, onerror) {
 					onerror(error, message);
 				}
 			} else {
+				websocket.lastSendMessage = new Date();
 				LOG.info(websocket, 'sendMessage complete', [message]);
 			}
 		});
