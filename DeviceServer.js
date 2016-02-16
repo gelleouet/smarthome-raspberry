@@ -22,7 +22,8 @@ var DeviceServer = function DeviceServer() {
 	this.drivers = []
 	this.credentials = null
 	
-	this.drivers['teleinfo'] = new TeleInfo(this);
+	this.drivers['teleinfo'] = new TeleInfo(this, 1);
+	this.drivers['teleinfo2'] = new TeleInfo(this, 2);
 	this.drivers['onewire'] = new OneWire(this);
 	this.drivers['zwave'] = new ZWave(this);
 	this.drivers['gpio'] = new Gpio(this);

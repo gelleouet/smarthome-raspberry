@@ -25,13 +25,14 @@ var TELEINFO_ADPS_TIMER = 15000; // 15 secondes
  * Constructor
  * @see Device
  */
-var TeleInfo = function TeleInfo(server) {
+var TeleInfo = function TeleInfo(server, id) {
 	Device.call(this, null, true, server);
 	
 	this.metavalues = {};
 	this.implClass = SMARTHOME_CLASS
 	this.starting = true;
 	this.timerCreate = false;
+	this.id = id
 };
 
 util.inherits(TeleInfo, Device);
@@ -42,8 +43,9 @@ util.inherits(TeleInfo, Device);
  */
 TeleInfo.prototype.init = function() {
 	var device = this;
+	var portPath = (this.id && this.id > 1) ? ("teleinfoPort" + this.id) : "teleinfoPort"
 	
-	if (!device.credentials || !device.credentials.teleinfoPort) {
+	if (!device.credentials || !device.credentials[portPath]) {
 		LOG.error(device, "Teleinfo init cancel : port not defined !")
 		return
 	}
@@ -51,7 +53,7 @@ TeleInfo.prototype.init = function() {
 	if (!this.object) {
 		LOG.info(device, "Init (not connected)...");
 		
-		device.object = new serialport.SerialPort(this.credentials.teleinfoPort, {
+		device.object = new serialport.SerialPort(this.credentials[portPath], {
 			baudrate: 1200,
 			dataBits: 7,
 			parity: 'even',
