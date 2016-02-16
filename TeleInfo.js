@@ -51,7 +51,7 @@ TeleInfo.prototype.init = function() {
 	}
 	
 	if (!this.object) {
-		LOG.info(device, "Init (not connected)...");
+		LOG.info(device, "Init (not connected)... port:", [portPath, this.credentials[portPath]]);
 		
 		device.object = new serialport.SerialPort(this.credentials[portPath], {
 			baudrate: 1200,
