@@ -190,6 +190,14 @@ TeleInfo.prototype.config = function(deviceMac, metadataName, metadataValue) {
 
 
 /**
+ * @see resetConfig
+ */
+TeleInfo.prototype.resetConfig = function() {
+	
+};
+
+
+/**
  * Lecture d'une trame téléinfo (une ligne d'une trame)
  * 
  * @param data

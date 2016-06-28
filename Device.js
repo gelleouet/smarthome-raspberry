@@ -88,6 +88,15 @@ Device.prototype.startExclusion = function() {
 
 
 /**
+ * Reset de la config
+ */
+Device.prototype.resetConfig = function() {
+	// chaque implémentation doit le définir
+	console.warn('Not implemented !');
+};
+
+
+/**
  * Indique si le drive peut prendre en charge l'écriture du device
  */
 Device.prototype.canWrite = function(device) {

@@ -256,6 +256,14 @@ ZWave.prototype.config = function(deviceMac, metadataName, metadataValue) {
 	}
 };
 
+
+/**
+ * @see resetConfig
+ */
+ZWave.prototype.resetConfig = function() {
+	this.zwave.hardReset();
+};
+
 /**
  * Envoit une valeur autonome. Cela créé un nouveau sous device du device
  * principal

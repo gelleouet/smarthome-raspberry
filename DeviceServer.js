@@ -53,6 +53,10 @@ DeviceServer.prototype.listen = function() {
 	deviceServer.on('exclusion', function(driver) {
 		driver.startExclusion();
 	});
+	
+	deviceServer.on('resetConfig', function(driver) {
+		driver.resetConfig();
+	});
 
 	deviceServer.on('write', function(driver, device) {
 		deviceServer.onWrite(driver, device);
@@ -105,6 +109,10 @@ DeviceServer.prototype.sendMessage = function(message, onerror) {
 			if (this.drivers[driverName].canWrite(message.device)) {
 				this.emit('write', this.drivers[driverName], message.device);
 			}
+		}
+	} else if (message.header == "resetConfig") {
+		for (driverName in this.drivers) {
+			this.emit('resetConfig', this.drivers[driverName]);
 		}
 	} else {
 		LOG.error(this, "Header not recognized !", message.header);

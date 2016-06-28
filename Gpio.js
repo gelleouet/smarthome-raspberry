@@ -268,5 +268,13 @@ Gpio.prototype.config = function(deviceMac, metadataName, metadataValue) {
 };
 
 
+/**
+ * @see resetConfig
+ */
+Gpio.prototype.resetConfig = function() {
+	
+};
+
+
 
 module.exports.Gpio = Gpio;

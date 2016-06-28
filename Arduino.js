@@ -175,5 +175,13 @@ Arduino.prototype.config = function(deviceMac, metadataName, metadataValue) {
 };
 
 
+/**
+ * @see resetConfig
+ */
+Arduino.prototype.resetConfig = function() {
+	
+};
+
+
 
 module.exports.Arduino = Arduino;

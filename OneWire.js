@@ -144,6 +144,14 @@ OneWire.prototype.config = function(deviceMac, metadataName, metadataValue) {
 };
 
 
+/**
+ * @see resetConfig
+ */
+OneWire.prototype.resetConfig = function() {
+	
+};
+
+
 
 /**
  * Scanne le bus 1-Wire et lance la lecture des sondes trouvées
