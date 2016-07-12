@@ -46,33 +46,11 @@ npm install node-gyp
 npm install openzwave-shared
 
 
-# Configuration Credentials Smarthome
+# Configuration Smarthome
 cd /opt/smarthome
-touch smarthome.credentials
-
-MAC=`ifconfig eth0 | grep "HWaddr" | awk -F " " '{print $5}'`
-
-echo "
-{ \"username\" : \"\",
-  \"applicationKey\" : \"\",
-  \"applicationHost\" : \"https://www.jdevops.com/smarthome\",
-  \"agentModel\" : \"Raspberry\",
-  \"mac\": \"$MAC\",
-  \"arduinoPort\": \"/dev/ttyUSB11\",
-  \"zwavePort\": \"/dev/ttyUSB10\",
-  \"teleinfoPort\": \"/dev/ttyAMA0\",
-  \"gpioPorts\": {\"gpio17\":{}, \"gpio18\":{}, \"gpio22\":{}, \"gpio23\":{}, \"gpio24\":{}, \"gpio25\":{}, \"gpio27\":{}}
-}
-" > smarthome.credentials
-
-
-# Démarrage auto au reboot du PI
 chmod +x smarthome
 cp smarthome /etc/init.d/
 update-rc.d smarthome defaults
-
-
-# Configuration Smarthome
 cp conf/monit/smarthome /etc/monit/conf.d/
 cp conf/logrotate/smarthome /etc/logrotate.d/
 cp conf/nginx/smarthome.conf /etc/nginx/sites-enabled/
