@@ -16,8 +16,6 @@ apt-get install build-essential
 apt-get install libssl-dev
 apt-get install monit
 apt-get install nginx
-# Le samba est utilisé pour accéder au rasp via son hostname (ex : http://raspberyypi)
-apt-get install samba
 
 
 # Installation OpenZWave
@@ -40,7 +38,6 @@ npm install epoll
 npm install onoff
 npm install ws
 npm install node-uuid
-#npm install request@2.45.0
 npm install request
 npm install ssl-root-cas
 npm install serialport@1.4.9
@@ -49,28 +46,32 @@ npm install node-gyp
 npm install openzwave-shared
 
 
+# Configuration Credentials Smarthome
 cd /opt/smarthome
 touch smarthome.credentials
 
-# get mac from eth0
 MAC=`ifconfig eth0 | grep "HWaddr" | awk -F " " '{print $5}'`
 
 echo "
 { \"username\" : \"\",
   \"applicationKey\" : \"\",
-  \"applicationHost" : \"https://www.jdevops.com/smarthome\",
-  \"agentModel\" : \"Raspberry B+\",
+  \"applicationHost\" : \"https://www.jdevops.com/smarthome\",
+  \"agentModel\" : \"Raspberry\",
   \"mac\": \"$MAC\",
   \"arduinoPort\": \"/dev/ttyUSB11\",
   \"zwavePort\": \"/dev/ttyUSB10\",
   \"teleinfoPort\": \"/dev/ttyAMA0\",
-  \"gpioPorts\": [\"gpio17\", \"gpio18\", \"gpio22\", \"gpio23\", \"gpio24\", \"gpio25\", \"gpio27\"]
+  \"gpioPorts\": {\"gpio17\":{}, \"gpio18\":{}, \"gpio22\":{}, \"gpio23\":{}, \"gpio24\":{}, \"gpio25\":{}, \"gpio27\":{}}
 }
 " > smarthome.credentials
 
 
 # Démarrage auto au reboot du PI
-sudo chmod +x smarthome
-sudo cp smarthome /etc/init.d/
+chmod +x smarthome
+cp smarthome /etc/init.d/
+update-rc.d smarthome defaults
 
 
+# Configuration Smarthome
+cp conf/monit/smarthome /etc/monit/conf.d/
+cp conf/logrotate/smarthome /etc/logrotate.d/
