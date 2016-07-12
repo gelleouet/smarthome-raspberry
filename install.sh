@@ -75,4 +75,5 @@ update-rc.d smarthome defaults
 # Configuration Smarthome
 cp conf/monit/smarthome /etc/monit/conf.d/
 cp conf/logrotate/smarthome /etc/logrotate.d/
-cp conf/nginx/smarthome.conf /etc/nginx/conf.d/
+cp conf/nginx/smarthome.conf /etc/nginx/sites-enabled/
+rm /etc/nginx/sites-enabled/default
