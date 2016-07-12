@@ -4,7 +4,7 @@ mac=`ifconfig eth0 | grep "HWaddr" | awk -F " " '{print $5}'`
 
 if [ -z "$mac" ]
 then
-        echo "Error : cannot get mac address. eth0 not found !
+        echo "Error : cannot get mac address. eth0 not found !"
 	exit 1
 fi
 
