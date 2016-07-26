@@ -190,14 +190,14 @@ ZWave.prototype.write = function(device) {
 	}
 	
 	// recherche d'abord avec les buttons du device
-	var metaButton = this.findButton(node, COMMAND_MAPPING[device.command.toLowerCase()])
+	/*var metaButton = this.findButton(node, COMMAND_MAPPING[device.command.toLowerCase()])
 	
 	if (metaButton) {
 		LOG.info(this, "Try pressButton", metaButton.label)
 		var ids = this.parseIds(metaButton.value_id)
 		this.zwave.pressButton(ids.nodeId, ids.commandClass, ids.instance, ids.index)
 		return
-	}
+	}*/
 
 	LOG.info(this, "No user button found for ", device.command)
 	
@@ -261,6 +261,7 @@ ZWave.prototype.config = function(deviceMac, metadataName, metadataValue) {
  * @see resetConfig
  */
 ZWave.prototype.resetConfig = function() {
+	LOG.info(this, "Reset controller config...");
 	this.zwave.hardReset();
 };
 

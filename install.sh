@@ -49,6 +49,7 @@ npm install openzwave-shared
 # Configuration Smarthome
 cd /opt/smarthome
 chmod +x smarthome
+chmod +x config.sh
 cp smarthome /etc/init.d/
 update-rc.d smarthome defaults
 cp conf/monit/smarthome /etc/monit/conf.d/
