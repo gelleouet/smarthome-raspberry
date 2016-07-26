@@ -158,17 +158,17 @@ Websocket.prototype.credential = function() {
 		this.applicationKey = this.credentials.applicationKey;
 		this.applicationHost = this.credentials.applicationHost;
 		this.agentModel = this.credentials.agentModel;
+		this.mac = this.credentials.mac; 
 		
 		var network = os.networkInterfaces();
 		LOG.info(this, 'Find network interface', network);
 		
-		if (network.eth0) {
-			this.mac = network.eth0[0].mac;
-			this.address = network.eth0[0].address;
+		if (network.eth0 || network.wlan0) {
+			this.address = network.eth0 ? network.eth0[0].address : network.wlan0[0].address;
 			// pas d'info mac sur nodejs v0.10. donc il faut le rajouter dans les credentials
 			if (!this.mac) {
-				LOG.info(this, 'No mac from os.networkInterfaces(). Try get it from credential...');
-				this.mac = this.credentials.mac; 
+				LOG.info(this, 'No mac from credential. Try get it from network...');
+				this.mac = network.eth0 ? network.eth0[0].mac : network.wlan0[0].mac;
 			}
 			
 			if (!this.mac) {
