@@ -108,7 +108,7 @@ TeleInfo.prototype.onData = function(data) {
 	}
 	
 	// trame complète, on envoi un message au serveur
-	if (values.adco && values.motdetat) {
+	if (values.adco && values.motdetat && values.iinst && values.hchc && values.hchp) {
 		var now = new Date();
 		var timer = now.getTime() - this.lastRead.getTime();
 		var adps = values.adps && (timer >= TELEINFO_ADPS_TIMER);
