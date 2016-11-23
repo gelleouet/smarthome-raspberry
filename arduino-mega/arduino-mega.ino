@@ -1,29 +1,52 @@
+#include <HomeEasy.h>
+#include <HomeEasyDefines.h>
+#include <HomeEasyPinDefines.h>
+#include <HomeEasyPortDefines.h>
+
 // pointer sur les méthodes interrupt
 typedef void (*onInterrupt)();
+
+struct CompteurMaxSecData {
+  int value;
+  int max;
+  unsigned long lastValueTime;
+  unsigned long lastDebounceTime; 
+};
+
+struct CompteurData {
+  int value; 
+  unsigned long lastDebounceTime; 
+};
 
 const int INPIN[] = {4,5,6,7,8,9,10,11,12,22,23,24,25,26,27,28,29};
 const int INLENGTH = sizeof(INPIN) / sizeof(int);
 int* _inValues; 
 
-const int OUTPIN[] = {30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49};
+const int OUTPIN[] = {13,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47};
 const int OUTLENGTH = sizeof(OUTPIN) / sizeof(int);
 
-const int COMPTEUR[] = {18,19,20,21};
+const unsigned long DEBOUNCE = 15;
+const unsigned long DEBOUNCE_USER = 500;
+const unsigned long INTERVALLE_COMPTEUR_SECONDE = 2000;
+
+const int COMPTEUR[] = {18,19};
 const int CPTLENGTH = sizeof(COMPTEUR) / sizeof(int);
-volatile int* _compteurValues;
+volatile CompteurData* _compteurValues;
 
 const int COMPTEURSEC[] = {2,3};
 const int CPTSECLENGTH = sizeof(COMPTEURSEC) / sizeof(int);
-volatile int* _compteurSecValues;
-volatile int* _compteurSecMaxValues;
-volatile unsigned long* _compteurSecLastTime;
+volatile CompteurMaxSecData* _compteurSecValues;
 
-const int MAXBUFFER = 16;
 const unsigned long SEND_TIMER = 60000 * 5; // toutes les 5 minutes
 unsigned long _lastSendTimer = 0;
 
+const int MAXBUFFER = 32;
 char _buffer[MAXBUFFER];
-int _idxBuffer = 0;
+volatile int _idxBuffer = 0;
+volatile boolean _bufferFilled = true;
+
+HomeEasy _homeEasy;
+volatile unsigned long _last433MessageTime = 0;
 
 
 /**
@@ -37,6 +60,7 @@ void compteurMaxParSeconde0() {
 void compteurMaxParSeconde1() {
   compteurMaxParSeconde(1);
 }
+
 void compteur0() {
   compteur(0);
 }
@@ -45,30 +69,27 @@ void compteur1() {
   compteur(1);
 }
 
-void compteur2() {
-  compteur(2);
-}
-
-void compteur3() {
-  compteur(3);
-}
-
-const onInterrupt COMPTEURISR[] = {compteur0, compteur1, compteur2, compteur3};
+const onInterrupt COMPTEURISR[] = {compteur0, compteur1};
 const onInterrupt COMPTEURSECISR[] = {compteurMaxParSeconde0, compteurMaxParSeconde1};
 
+/**
+ * Init programme
+ */
 void setup() {
   // Creation des buffers de values
   _inValues = (int*) malloc(sizeof(int) * INLENGTH);
-  _compteurSecValues = (int*) malloc(sizeof(int) * CPTSECLENGTH);
-  _compteurSecMaxValues = (int*) malloc(sizeof(int) * CPTSECLENGTH);
-  _compteurSecLastTime = (unsigned long*) malloc(sizeof(unsigned long) * CPTSECLENGTH);
-  _compteurValues = (int*) malloc(sizeof(int) * CPTLENGTH);
+  _compteurSecValues = (CompteurMaxSecData*) malloc(sizeof(CompteurMaxSecData) * CPTSECLENGTH);
+  _compteurValues = (CompteurData*) malloc(sizeof(CompteurData) * CPTLENGTH);
   
   // les pins en sortie sont configurés avec une résistance pullup
   // (utile pour les cartes relais type sainsmart qui fonctionnent "à l'envers")
   for (int idx=0; idx<OUTLENGTH; idx++) {
     pinMode(OUTPIN[idx], OUTPUT);
-    digitalWrite(OUTPIN[idx], HIGH);
+    // pas de high pour la 13 car c'est la led et on ne va pas la laisser allumer
+    // elle pourra servir de test
+    if (OUTPIN[idx] != 13) {
+      digitalWrite(idx, HIGH);
+    }
   }
   
   for (int idx=0; idx<INLENGTH; idx++) {
@@ -79,16 +100,12 @@ void setup() {
   // les pins interrupt par seconde sont configurés en entrée
   for (int idx=0; idx<CPTSECLENGTH; idx++) {
     pinMode(COMPTEURSEC[idx], INPUT_PULLUP);
-    _compteurSecValues[idx] = 0;
-    _compteurSecMaxValues[idx] = 0;
-    _compteurSecLastTime[idx] = 0;
     attachInterrupt(digitalPinToInterrupt(COMPTEURSEC[idx]), COMPTEURSECISR[idx], FALLING);
   }
 
   // les pins interrupt sont configurés en entrée
   for (int idx=0; idx<CPTLENGTH; idx++) {
     pinMode(COMPTEUR[idx], INPUT_PULLUP);
-    _compteurValues[idx] = 0;
     attachInterrupt(digitalPinToInterrupt(COMPTEUR[idx]), COMPTEURISR[idx], FALLING);
   }
 
@@ -96,13 +113,16 @@ void setup() {
   
   Serial.begin(9600); 
 
+  _homeEasy = HomeEasy();  
+  _homeEasy.registerSimpleProtocolHandler(homeEasySimpleResult);
+  _homeEasy.registerAdvancedProtocolHandler(homeEasyAdvancedResult);
+  _homeEasy.init();
+
   // on previent l'agent du nombre de pins configurés en sortie
   // pas utile pour les entrées ca va remonter dès qu'une valeur sera détectée
   for (int idx=0; idx<OUTLENGTH; idx++) {
     sendValue(OUTPIN[idx], 0);
   }
-
-  Serial.println("LOG Setup Arduino Smarthome Module.");
 }
 
 
@@ -114,36 +134,32 @@ void sendValue(int pin, int value) {
    Serial.print(pin);
    Serial.print("\", \"value\":");
    Serial.print(value);
-   Serial.print(", \"input\":");
-   Serial.print(isInput(pin) ? "true" : "false");
    Serial.println("}");
 }
 
 
 /**
- * Programme principam
+ * Programme principal
  */
 void loop() {
   // lecture des pins IN
   for (int idx=0; idx<INLENGTH; idx++) {
     // 2 lecture avec pause pour gerer les parasites
     int firstRead = digitalRead(INPIN[idx]);    
-    delay(15);
+    delay(DEBOUNCE);
     int secondRead = digitalRead(INPIN[idx]);
   
     if ((firstRead == secondRead) && (firstRead != _inValues[idx])) {
       _inValues[idx] = firstRead;
-      // attention les pins en in  sont inversés (high -> 0, low -> 1)
+      // attention les pins IN sont inversés (high -> 0, low -> 1) à cause du pullup
       sendValue(INPIN[idx], _inValues[idx] == HIGH ? 0 : 1);
     }
   }
 
   // attente info du controller
-  if (Serial.available()) {
-    if (readBuffer()) {
-      parseBuffer();
-      resetBuffer();
-    }
+  if (_bufferFilled) {
+    parseBuffer();
+    resetBuffer();
   }
 
   // envoi des valeurs des interrupt toutes les X minutes
@@ -152,29 +168,40 @@ void loop() {
 
 
 /**
- * Vérifie le timer pour l'envoi de données
+ * Interruption déclenchée dès que le buffer Série
+ * contient des données
+ */
+void serialEvent() {
+  while (Serial.available()) {
+    if (readBuffer()) {
+      _bufferFilled = true;
+    }
+  }
+}
+
+
+/**
+ * Vérifie le timer pour l'envoi de données des compteurs
+ * Envoi puis reset des valeurs
  */
 void sendCompteurValues() {
   unsigned long timer = millis();
-  long ellapse = timer - _lastSendTimer;
+  unsigned long ellapse = timer - _lastSendTimer;
 
-  if (ellapse >= SEND_TIMER) {
-    Serial.println("LOG Send compteur values");
+  if (ellapse > SEND_TIMER || _lastSendTimer > timer) {
     
-    // envoi puis reset des valeurs
     for (int idx=0; idx<CPTSECLENGTH; idx++) {
-      if (_compteurSecMaxValues[idx] > 0) {
-        sendValue(COMPTEURSEC[idx], _compteurSecMaxValues[idx]);
-      }
-      
-      _compteurSecMaxValues[idx] = 0;
+      if (_compteurSecValues[idx].max > 0) {
+        sendValue(COMPTEURSEC[idx], _compteurSecValues[idx].max);
+      }      
+      _compteurSecValues[idx].max = 0;
     }
 
     for (int idx=0; idx<CPTLENGTH; idx++) {
-      if (_compteurValues[idx] > 0) {
-        sendValue(COMPTEUR[idx], _compteurValues[idx]);
+      if (_compteurValues[idx].value > 0) {
+        sendValue(COMPTEUR[idx], _compteurValues[idx].value);
       }
-      _compteurValues[idx] = 0;
+      _compteurValues[idx].value = 0;
     }
 
     _lastSendTimer = timer;
@@ -183,14 +210,18 @@ void sendCompteurValues() {
 
 
 /**
- * Vide le buffer série
+ * Réinitialise le buffer Série
  */
 void resetBuffer() {
   memset(_buffer, 0, MAXBUFFER);
   _idxBuffer = 0;
+  _bufferFilled = false;
 }
 
 
+/**
+ * Lecture d'un seul caractère sur le buffer série
+ */
 boolean readBuffer() {
    _buffer[_idxBuffer] = (char) Serial.read();
 
@@ -209,6 +240,9 @@ boolean readBuffer() {
 }
 
 
+/**
+ * Exécution des commandes recues dans le buffer Série
+ */
 void parseBuffer() {
   char *split = strtok(_buffer, ":");
   int pin = -1;
@@ -227,37 +261,45 @@ void parseBuffer() {
 
   // les valeurs sont inversées par rapport à la normale
   // sauf pour la led de test
-  if (valeur == 0) {
-    digitalWrite(pin, pin == 13 ? LOW : HIGH);
-    Serial.print("LOG Write HIGH to ");
-    Serial.println(pin);      
-  } else if (valeur == 1) {
-    digitalWrite(pin, pin == 13 ? HIGH : LOW);
-    Serial.print("LOG Write LOW to ");
-    Serial.println(pin);      
+  if (!isInput(pin)) {
+    if (valeur == 0) {
+      digitalWrite(pin, pin == 13 ? LOW : HIGH);    
+    } else if (valeur == 1) {
+      digitalWrite(pin, pin == 13 ? HIGH : LOW);     
+    }
   }
 }
 
 
-
 /**
  * Interrupt pour les compteurs max par seconde
- * Le compteur est réinitialisé toutes les secondes
+ * Le compteur est réinitialisé toutes les X secondes
  * et seule la valeur max est conservée
  */
 void compteurMaxParSeconde(int idx) {
   unsigned long timer = millis();
-  long ellapse = timer - _compteurSecLastTime[idx];
 
-  // reset toutes les secondes et sauvegarde du max
-  if (ellapse >= 5000) {
-    if (_compteurSecValues[idx] > _compteurSecMaxValues[idx]) {
-       _compteurSecMaxValues[idx] = _compteurSecValues[idx];
-    }
-    _compteurSecValues[idx] = 0;
-    _compteurSecLastTime[idx] = timer;
+  // gestion du debounce
+  unsigned long ellapse = timer - _compteurSecValues[idx].lastDebounceTime;
+
+  if (ellapse < DEBOUNCE) {
+    return;
   }
-  _compteurSecValues[idx]++;
+
+  ellapse = timer - _compteurSecValues[idx].lastValueTime;
+
+  // reset toutes les X secondes et sauvegarde du max
+  // test aussi si le timer est revenu à 0 après avoit atteint les 50J
+  if (ellapse > INTERVALLE_COMPTEUR_SECONDE || _compteurSecValues[idx].lastValueTime > timer) {
+      if (_compteurSecValues[idx].value > _compteurSecValues[idx].max) {
+         _compteurSecValues[idx].value = _compteurSecValues[idx].max;
+      }
+    _compteurSecValues[idx].value = 0;
+    _compteurSecValues[idx].lastValueTime = timer;
+  }
+  
+  _compteurSecValues[idx].value++;
+  _compteurSecValues[idx].lastDebounceTime = timer;
 }
 
 
@@ -266,9 +308,17 @@ void compteurMaxParSeconde(int idx) {
  * Le compteur est incrémenté à chaque fois
  */
 void compteur(int idx) {
-  //Serial.print("LOG interrupt ");
-  //Serial.println(idx);
-  _compteurValues[idx]++;
+  unsigned long timer = millis();
+
+  // gestion du debounce
+  unsigned long ellapse = timer - _compteurValues[idx].lastDebounceTime;
+
+  if (ellapse < DEBOUNCE) {
+    return;
+  }
+  
+  _compteurValues[idx].value++;
+  _compteurValues[idx].lastDebounceTime = timer;
 }
 
 
@@ -284,5 +334,37 @@ boolean isInput(int pin) {
     }
   }
   return true; 
+}
+
+/**
+ * Evénements réception données sur fréquence protocole HomeEasy (chacon)
+ */
+void homeEasyAdvancedResult(unsigned long sender, unsigned int recipient, bool on, bool group)
+{
+  unsigned long nowTime = millis();
+  unsigned long ellapse = nowTime - _last433MessageTime;
+
+  if (ellapse < DEBOUNCE_USER) {
+    return;
+  }
+  
+  Serial.print("{\"mac\": \"");
+  Serial.print(sender);
+  Serial.print("-");
+  Serial.print(recipient);
+  Serial.print("\", \"value\":");
+  Serial.print(on ? 1 : 0);
+  Serial.println("}");
+  
+  _last433MessageTime = nowTime;
+}
+
+
+/**
+ * Evénements réception données sur fréquence protocole HomeEasy (chacon)
+ */
+void homeEasySimpleResult(unsigned int sender, unsigned int recipient, bool on)
+{
+  homeEasyAdvancedResult(sender, recipient, on, false);
 }
 
