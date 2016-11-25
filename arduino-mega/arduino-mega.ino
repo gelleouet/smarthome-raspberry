@@ -25,20 +25,19 @@ int* _inValues;
 const int OUTPIN[] = {13,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47};
 const int OUTLENGTH = sizeof(OUTPIN) / sizeof(int);
 
-const unsigned long DEBOUNCE = 15;
+const unsigned long DEBOUNCE = 10;
 const unsigned long DEBOUNCE_USER = 500;
 const unsigned long INTERVALLE_COMPTEUR_SECONDE = 2000;
+const unsigned long SEND_TIMER = 60000 * 5; // toutes les 5 minutes
+unsigned long _lastSendTimer = 0;
 
-const int COMPTEUR[] = {18,19};
+const int COMPTEUR[] = {};
 const int CPTLENGTH = sizeof(COMPTEUR) / sizeof(int);
 volatile CompteurData* _compteurValues;
 
 const int COMPTEURSEC[] = {2,3};
 const int CPTSECLENGTH = sizeof(COMPTEURSEC) / sizeof(int);
 volatile CompteurMaxSecData* _compteurSecValues;
-
-const unsigned long SEND_TIMER = 60000 * 5; // toutes les 5 minutes
-unsigned long _lastSendTimer = 0;
 
 const int MAXBUFFER = 32;
 char _buffer[MAXBUFFER];
@@ -88,7 +87,7 @@ void setup() {
     // pas de high pour la 13 car c'est la led et on ne va pas la laisser allumer
     // elle pourra servir de test
     if (OUTPIN[idx] != 13) {
-      digitalWrite(idx, HIGH);
+     digitalWrite(OUTPIN[idx], HIGH);
     }
   }
   
@@ -146,7 +145,7 @@ void loop() {
   for (int idx=0; idx<INLENGTH; idx++) {
     // 2 lecture avec pause pour gerer les parasites
     int firstRead = digitalRead(INPIN[idx]);    
-    delay(DEBOUNCE);
+    delay(5);
     int secondRead = digitalRead(INPIN[idx]);
   
     if ((firstRead == secondRead) && (firstRead != _inValues[idx])) {
@@ -189,10 +188,10 @@ void sendCompteurValues() {
   unsigned long ellapse = timer - _lastSendTimer;
 
   if (ellapse > SEND_TIMER || _lastSendTimer > timer) {
-    
+
     for (int idx=0; idx<CPTSECLENGTH; idx++) {
       if (_compteurSecValues[idx].max > 0) {
-        sendValue(COMPTEURSEC[idx], _compteurSecValues[idx].max);
+        sendValue(COMPTEURSEC[idx], _compteurSecValues[idx].max);        
       }      
       _compteurSecValues[idx].max = 0;
     }
@@ -292,7 +291,7 @@ void compteurMaxParSeconde(int idx) {
   // test aussi si le timer est revenu à 0 après avoit atteint les 50J
   if (ellapse > INTERVALLE_COMPTEUR_SECONDE || _compteurSecValues[idx].lastValueTime > timer) {
       if (_compteurSecValues[idx].value > _compteurSecValues[idx].max) {
-         _compteurSecValues[idx].value = _compteurSecValues[idx].max;
+         _compteurSecValues[idx].max = _compteurSecValues[idx].value;
       }
     _compteurSecValues[idx].value = 0;
     _compteurSecValues[idx].lastValueTime = timer;
