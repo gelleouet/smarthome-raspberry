@@ -29,14 +29,19 @@ var COMMAND_MAPPING = {
 /**
  * Liste des valeurs qui doivent être enregistrées
  * dans la valeur principale du device
+ * 
+ * IMPORTANT : Cette liste doit être triée par ordre de priorité croissante pour les devices
+ * qui ont 2 values dans la liste
  */
-var DEFAULT_VALUES = ["level", "sensor", "smoke"]
+var MAIN_VALUES = ["level", "sensor", "smoke", "switch"]
+
 
 /**
  * Des valeurs spéciales qui doivent être enregistrées sur
  * des devices à part
  */
-var ALONE_VALUES = ["temperature", "luminance"]
+var VIRTUAL_VALUES = ["temperature", "luminance"]
+
 
 
 /**
@@ -93,9 +98,7 @@ ZWave.prototype.init = function() {
 	this.zwave.on('node ready', function(nodeid, nodeinfo) {
 		device.nodes[nodeid]['productinfo'] = nodeinfo
 		LOG.info(device, "node ready " + nodeid, nodeinfo);
-		device.sendDeviceMetavalues(nodeid)
-		device.sendDeviceMetadatas(nodeid)
-		device.sendDeviceAloneValues(nodeid)
+		device.sendDeviceValues(nodeid)
 		
 		// activation du polling sur les value de type command
 		device.zwave.enablePoll(nodeid, COMMAND_CLASS_SWITCH_BINARY)
@@ -112,14 +115,7 @@ ZWave.prototype.init = function() {
 	
 	this.zwave.on('node event', function(nodeid, event, value) {
 		LOG.info(device, "node event " + nodeid, [event, value])
-		
-		if (device.isMetadata(value)) {
-			device.sendDeviceMetadatas(nodeid, value.value_id)
-		} else if (device.isAloneValue(value)) {
-			device.sendDeviceAloneValues(nodeid, value.value_id)
-		} else {
-			device.sendDeviceMetavalues(nodeid, value.value_id)
-		}
+		device.sendDeviceValues(nodeid, value.value_id)
 	});
 	
 	this.zwave.on('value refreshed', function(nodeid, comclass, value) {
@@ -132,14 +128,7 @@ ZWave.prototype.init = function() {
 		
 		if (device.networkScan && oldValue.value != value.value) {
 			LOG.info(device, "Value changed", value)
-			
-			if (device.isMetadata(value)) {
-				device.sendDeviceMetadatas(nodeid, value.value_id)
-			} else if (device.isAloneValue(value)) {
-				device.sendDeviceAloneValues(nodeid, value.value_id)
-			} else {
-				device.sendDeviceMetavalues(nodeid, value.value_id)
-			}
+			device.sendDeviceValues(nodeid, value.value_id)
 		} 
 	});
 	
@@ -265,36 +254,12 @@ ZWave.prototype.resetConfig = function() {
 	this.zwave.hardReset();
 };
 
-/**
- * Envoit une valeur autonome. Cela créé un nouveau sous device du device
- * principal
- */
-ZWave.prototype.sendDeviceAloneValues = function(nodeId, metaName) {
-	var node = this.nodes[nodeId]
-	
-	for (valueName in node) {
-		if (!metaName || metaName == valueName) {
-			var metadata = node[valueName]
-			
-			if (metadata.value && this.isAloneValue(metadata)) {
-				var device = new ZWave(this.server)
-				device.mac = "zwave" + metadata.value_id
-				device.label = metadata.label
-				if (node.productinfo) {
-					device.label = device.label + ' (' + node.productinfo.product + ')'
-				}
-				device.value = metadata.value
-				this.server.emit('value', device)
-			}
-		}
-	}
-}
 
 /**
  * Convertit un node ZWave en device et envoit les infos au serveur
  * 
  */
-ZWave.prototype.sendDeviceMetavalues = function(nodeId, metaName) {
+ZWave.prototype.sendDeviceValues = function(nodeId, metaName) {
 	var node = this.nodes[nodeId]
 	var device = new ZWave(this.server)
 	device.mac = "zwave" + nodeId
@@ -303,14 +268,12 @@ ZWave.prototype.sendDeviceMetavalues = function(nodeId, metaName) {
 		device.label = node.productinfo.product
 	}
 	
-	// TODO : voir si la règle s'applique aux autres devices
-	var metaLevel = this.findValue(node, DEFAULT_VALUES)
+	// toujours 0 : c'est sur la webapp avec le système de main meta que la
+	// valeur sera ajustée
+	device.value = 0
 	
-	if (metaLevel) {
-		device.value = metaLevel.value
-	} else {
-		device.value = 0
-	}
+	// recherche de la meta principale
+	var metaMain = this.findValue(node, MAIN_VALUES)
 	
 	for (valueName in node) {
 		if (!metaName || metaName == valueName) {
@@ -321,39 +284,15 @@ ZWave.prototype.sendDeviceMetavalues = function(nodeId, metaName) {
 					label: metadata.label + (metadata.units ? ' (' + metadata.units + ')' : ''),
 					value: metadata.value != null ? metadata.value : null,
 					type: metadata.genre + ' (' + metadata.type + ')',
+					main: (metaMain && metaMain.value_id == metadata.value_id),
+					virtualDevice: this.isVirtualValue(metadata)
 				}
 				
 				device.metavalues[valueName] = metavalue
-			}
-		}
-	}
-	
-	this.server.emit('value', device)
-}
-
-
-/**
- * Convertit un node ZWave en device et envoit les infos au serveur
- * 
- */
-ZWave.prototype.sendDeviceMetadatas = function(nodeId, metaName) {
-	var node = this.nodes[nodeId]
-	var device = new ZWave(this.server)
-	if (node.productinfo) {
-		device.label = node.productinfo.product
-	}
-	device.mac = "zwave" + nodeId
-	
-	// envoi en plusieurs morceaux car sinon ca peut prendre un gros volume si beaucoup de valeurs
-	for (valueName in node) {
-		if (!metaName || metaName == valueName) {
-			var metadata = node[valueName]
-				
-			if (this.isMetadata(metadata)) {
+			} else if (this.isMetadata(metadata)) {
 				var metavalue = {
 						label: metadata.label + (metadata.units ? ' (' + metadata.units + ')' : ''),
 						value: metadata.value != null ? metadata.value : null,
-						//help: metadata.help != null ? metadata.help : null,
 						type: metadata.genre + ' (' + metadata.type + ')',
 						values: metadata.values != null ? '' + metadata.values : null
 				}
@@ -363,7 +302,7 @@ ZWave.prototype.sendDeviceMetadatas = function(nodeId, metaName) {
 		}
 	}
 	
-	this.server.emit('value', device, 'deviceConfig')
+	this.server.emit('value', device)
 }
 
 
@@ -393,9 +332,9 @@ ZWave.prototype.isMetavalue = function(metadata) {
 /**
  * 
  */
-ZWave.prototype.isAloneValue = function(metadata) {
-	for (var idx=0; idx<ALONE_VALUES.length; idx++) {
-		if (metadata.label != null && metadata.label.toLowerCase() == ALONE_VALUES[idx].toLowerCase()) {
+ZWave.prototype.isVirtualValue = function(metadata) {
+	for (var idx=0; idx<VIRTUAL_VALUES.length; idx++) {
+		if (metadata.label != null && metadata.label.toLowerCase() == VIRTUAL_VALUES[idx].toLowerCase()) {
 			return true
 		}
 	}
@@ -406,9 +345,9 @@ ZWave.prototype.isAloneValue = function(metadata) {
 /**
  * 
  */
-ZWave.prototype.isDefaultValue = function(metadata) {
-	for (var idx=0; idx<DEFAULT_VALUES.length; idx++) {
-		if (metadata.label != null && metadata.label.toLowerCase() == DEFAULT_VALUES[idx].toLowerCase()) {
+ZWave.prototype.isMainValue = function(metadata) {
+	for (var idx=0; idx<MAIN_VALUES.length; idx++) {
+		if (metadata.label != null && metadata.label.toLowerCase() == MAIN_VALUES[idx].toLowerCase()) {
 			return true
 		}
 	}
@@ -441,16 +380,18 @@ ZWave.prototype.parseIds = function(value) {
 
 /**
  * Recherche d'une valeur d'un node par son label
+ * On boucle d'abord sur la liste des labels comme ca
+ * ca permet de retrouver une meta avec un ordre de priorité
  */
 ZWave.prototype.findValue = function(node, labels) {
 	if (labels == null) {
 		return null
 	}
 	
-	for (valueName in node) {
-		var metadata = node[valueName]
+	for (var idx=0; idx<labels.length; idx++) {
+		for (valueName in node) {
+			var metadata = node[valueName]
 		
-		for (var idx=0; idx<labels.length; idx++) {
 			if (metadata.label != null && metadata.label.toLowerCase() == labels[idx].toLowerCase()) {
 				return metadata
 			}
