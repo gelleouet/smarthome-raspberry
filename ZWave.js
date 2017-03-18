@@ -299,7 +299,7 @@ ZWave.prototype.sendDeviceValues = function(nodeId, metaName) {
 						label: metadata.label + (metadata.units ? ' (' + metadata.units + ')' : ''),
 						value: metadata.value != null ? metadata.value : null,
 						type: metadata.genre + ' (' + metadata.type + ')',
-						values: metadata.values != null ? '' + metadata.values : null
+						values: metadata.values
 				}
 				
 				device.metadatas[valueName] = metavalue
