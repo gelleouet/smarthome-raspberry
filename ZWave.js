@@ -313,8 +313,6 @@ ZWave.prototype.isMetadata = function(metadata) {
 	return !metadata.read_only 
 		&& metadata.genre != 'user' 
 		&& metadata.value_id
-		&& !this.isAloneValue(metadata)
-		&& !this.isDefaultValue(metadata)
 }
 
 
