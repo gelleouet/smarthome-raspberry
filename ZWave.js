@@ -115,7 +115,12 @@ ZWave.prototype.init = function() {
 	
 	this.zwave.on('node event', function(nodeid, event, value) {
 		LOG.info(device, "node event " + nodeid, [event, value])
-		device.sendDeviceValues(nodeid, value.value_id)
+		// si pas de valeur, on envoit tout le packet
+		if (value) {
+			device.sendDeviceValues(nodeid, value.value_id)
+		} else {
+			device.sendDeviceValues(nodeid)
+		}
 	});
 	
 	this.zwave.on('value refreshed', function(nodeid, comclass, value) {
