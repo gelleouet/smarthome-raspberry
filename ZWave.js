@@ -322,10 +322,7 @@ ZWave.prototype.isMetadata = function(metadata) {
  * 
  */
 ZWave.prototype.isMetavalue = function(metadata) {
-	return metadata.genre == 'user' 
-		&& metadata.type != 'button'
-		&& !this.isAloneValue(metadata)
-		&& !this.isDefaultValue(metadata)
+	return metadata.genre == 'user' && metadata.type != 'button'
 }
 
 
