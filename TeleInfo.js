@@ -213,31 +213,44 @@ TeleInfo.prototype.parseData = function(data, values) {
 	if (tokens.length > 2 && checksum) {
 		tokens[1] = tokens[1].replace(/\./g, "");
 		var metavalue = {
-			value: tokens[1]
+			value: tokens[1],
 		}
 		
 		if (tokens[0] == "ADCO") {
 			values.adco = metavalue
 		} else if (tokens[0] == "OPTARIF") {
 			values.opttarif = metavalue
+			metavalue.label = "Option tarifaire"
 		} else if (tokens[0] == "ISOUSC") {
 			values.isousc = metavalue
+			metavalue.label = "Intensité souscrite (A)"
 		} else if (tokens[0] == "HCHC") {
 			values.hchc = metavalue
+			metavalue.label = "Total heures creuses (Wh)"
+			metavalue.trace = true
 		} else if (tokens[0] == "HCHP") {
 			values.hchp = metavalue
+			metavalue.label = "Total heures pleines (Wh)"
+			metavalue.trace = true
 		} else if (tokens[0] == "PTEC") {
 			values.ptec = metavalue
+			metavalue.label = "Période tarifaire"
 		} else if (tokens[0] == "IINST") {
 			values.iinst = metavalue
+			metavalue.label = "Intensité instantanée (A)"
+			metavalue.main = true
 		} else if (tokens[0] == "IMAX") {
 			values.imax = metavalue
+			metavalue.label = "Intensité maximale (A)"
 		} else if (tokens[0] == "PAPP") {
 			values.papp = metavalue
+			metavalue.label = "Puissance apparente (VA)"
 		} else if (tokens[0] == 'MOTDETAT') {
 			values.motdetat = true
 		} else if (tokens[0] == 'ADPS') {
 			values.adps = metavalue
+			metavalue.label = "Avertissement Dépassement Puissance (A)"
+			metavalue.trace = true
 		}
 	}
 };

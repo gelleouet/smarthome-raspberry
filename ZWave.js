@@ -11,7 +11,6 @@ var Device = require("./Device").Device;
 var LOG = require("./Log").newInstance();
 
 
-var SMARTHOME_ZWAVE_CLASS = "smarthome.automation.deviceType.Zwave"
 var COMMAND_CLASS_CONFIGURATION = 112;
 var COMMAND_CLASS_SWITCH_BINARY = 37;
 var COMMAND_CLASS_SWITCH_MULTILEVEL = 38;
@@ -50,11 +49,13 @@ var VIRTUAL_VALUES = ["temperature", "luminance"]
  */
 var ZWave = function ZWave(server) {
 	Device.call(this, null, true, server);
-	this.implClass = SMARTHOME_ZWAVE_CLASS
+	this.implClass = ""
 	this.metavalues = {};
 	this.metadatas = {};
 	this.nodes = [];
 	this.networkScan = false;
+	this.type = null
+	this.manufacturer = null
 };
 
 util.inherits(ZWave, Device);
@@ -271,6 +272,8 @@ ZWave.prototype.sendDeviceValues = function(nodeId, metaName) {
 	
 	if (node.productinfo) {
 		device.label = node.productinfo.product
+		device.type = node.productinfo.type
+		device.manufacturer = node.productinfo.manufacturer
 	}
 	
 	// toujours 0 : c'est sur la webapp avec le système de main meta que la
