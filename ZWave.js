@@ -17,7 +17,7 @@ var COMMAND_CLASS_SWITCH_MULTILEVEL = 38;
 
 
 /**
- * Le mappng des commandes envoyées par la webapp
+ * Le mapping des commandes envoyées par la webapp
  * et celles programmées sur les devices
  */
 var COMMAND_MAPPING = {
@@ -289,7 +289,7 @@ ZWave.prototype.sendDeviceValues = function(nodeId, metaName) {
 			
 			if (this.isMetavalue(metadata)) {
 				var metavalue = {
-					label: metadata.label + (metadata.units ? ' (' + metadata.units + ')' : ''),
+					label: metadata.label,
 					value: metadata.value != null ? metadata.value : null,
 					type: metadata.genre + ' (' + metadata.type + ')',
 					main: (metaMain && metaMain.value_id == metadata.value_id),
@@ -299,7 +299,7 @@ ZWave.prototype.sendDeviceValues = function(nodeId, metaName) {
 				device.metavalues[valueName] = metavalue
 			} else if (this.isMetadata(metadata)) {
 				var metavalue = {
-						label: metadata.label + (metadata.units ? ' (' + metadata.units + ')' : ''),
+						label: metadata.label,
 						value: metadata.value != null ? metadata.value : null,
 						type: metadata.genre + ' (' + metadata.type + ')',
 						values: metadata.values
