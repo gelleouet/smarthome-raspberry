@@ -124,14 +124,17 @@ TeleInfo.prototype.onData = function(data) {
 			
 			// ajout d'une valeur par défaut du adps
 			if (!teleinfo.metavalues.adps) {
-				teleinfo.metavalues.adps = {value: "0"}
+				teleinfo.metavalues.adps = {
+						value: "0",
+						label: "Avertissement Dépassement Puissance (A)",
+						trace: true
+				}
 			}
 			
 			LOG.info(teleinfo, "Compteur " + teleinfo.mac + " poll new value !", teleinfo.value, teleinfo.adps)
 			
 			// supprime les valeurs redondantes car pas mappé sur server
 			delete values.adco;
-			delete values.iinst;
 			delete values.motdetat;
 			
 			this.server.emit("value", teleinfo);
