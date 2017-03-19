@@ -143,6 +143,12 @@ ZWave.prototype.init = function() {
 		LOG.info(device, "Value added", value)
 	});
 	
+	this.zwave.on('controller command', function(n, rv, st, msg) {
+		LOG.info(device, 'controller commmand feedback: %s node==%d, retval=%d, state=%d',
+				msg, n, rv, st);
+	});
+
+	
 	this.zwave.connect(this.credentials.zwavePort);
 };
 
