@@ -9,6 +9,7 @@ var OneWire = require("./OneWire").OneWire;
 var ZWave = require("./ZWave").ZWave;
 var Gpio = require("./Gpio").Gpio;
 var Arduino = require("./Arduino").Arduino;
+var Shell = require("./Shell").Shell;
 var LOG = require("./Log").newInstance();
 
 
@@ -21,6 +22,7 @@ var DeviceServer = function DeviceServer() {
 	
 	this.drivers = []
 	this.credentials = null
+	this.shell = new Shell(this)
 	
 	this.drivers['teleinfo'] = new TeleInfo(this, 1);
 	this.drivers['teleinfo2'] = new TeleInfo(this, 2);
@@ -114,7 +116,10 @@ DeviceServer.prototype.sendMessage = function(message, onerror) {
 		for (driverName in this.drivers) {
 			this.emit('resetConfig', this.drivers[driverName]);
 		}
+	} else if (message.header == "shell") {
+		this.shell.write(message.data)
 	} else {
+	
 		LOG.error(this, "Header not recognized !", message.header);
 	}
 }
@@ -124,8 +129,10 @@ DeviceServer.prototype.sendMessage = function(message, onerror) {
  * Ferme le gestionnaire de devices
  */
 DeviceServer.prototype.close = function() {
+	this.shell.free()
+	
 	for (driverName in this.drivers) {
-		this.drivers[driverName].free();
+		this.drivers[driverName].free()
 	}
 }
 

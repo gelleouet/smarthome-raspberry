@@ -1,7 +1,7 @@
 /**
- * TeleInfo
+ * ZWave
  * 
- * Implémentation Device pour la lecture du téléinfo EDF
+ * Implémentation Device pour la gestion des objets ZWave
  * 
  * @author gregory.elleouet@gmail.com
  */
@@ -145,7 +145,7 @@ ZWave.prototype.init = function() {
 	
 	this.zwave.on('controller command', function(n, rv, st, msg) {
 		LOG.info(device, 'controller commmand feedback: %s node==%d, retval=%d, state=%d',
-				msg, n, rv, st);
+				[msg, n, rv, st]);
 	});
 
 	

@@ -44,6 +44,7 @@ npm install serialport@1.4.9
 npm install pi-gpio
 npm install node-gyp
 npm install openzwave-shared
+npm install pty
 
 
 # Configuration Smarthome
