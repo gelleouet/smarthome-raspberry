@@ -31,8 +31,9 @@ Shell.prototype.write = function(data) {
 			this.free()
 		}
 		this.connect()
+	} else {
+		this.xterm.write(data)
 	}
-	this.xterm.write(data)
 };
 
 
