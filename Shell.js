@@ -43,8 +43,10 @@ Shell.prototype.write = function(data) {
  * @param data
  */
 Shell.prototype.free = function() {
-	this.xterm.destroy()
-	this.xterm = null
+	if (this.xterm) {
+		this.xterm.destroy()
+		this.xterm = null
+	}
 };
 
 
