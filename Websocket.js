@@ -228,7 +228,7 @@ Websocket.prototype.sendMessage = function(message, onerror) {
 				}
 			} else {
 				websocket.lastSendMessage = new Date();
-				LOG.info(websocket, 'sendMessage complete', [message]);
+				//LOG.info(websocket, 'sendMessage complete', [message]);
 			}
 		});
 	} else if (onerror) {
@@ -277,7 +277,7 @@ Websocket.prototype.websocket = function() {
 		});
 		
 		this.ws.on('message', function message(data, flags) {
-			LOG.info(websocket, 'Receiving data...');
+			//LOG.info(websocket, 'Receiving data...');
 			
 			// le message doit contenir dans son entete les infos de connexion.
 			// evite de repondre à des messages externes même si pas possible car websocket connecté à appli smarthome
