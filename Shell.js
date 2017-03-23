@@ -32,6 +32,9 @@ Shell.prototype.write = function(data) {
 		}
 		this.connect()
 	} else {
+		if (!this.xterm) {
+			this.connect()
+		}
 		this.xterm.write(data)
 	}
 };
@@ -51,12 +54,24 @@ Shell.prototype.free = function() {
 
 
 /**
+ * Envoi d'un message au serveur
+ * 
+ * @param data
+ */
+Shell.prototype.sendData = function(data) {
+	var device = new Device('xterm-color', true, this.server)
+	device.value = data
+	this.server.emit('value', device, 'shell')
+};
+
+
+/**
  * Arrêt du shell
  * 
  * @param data
  */
 Shell.prototype.connect = function() {
-	var server = this.server
+	var shell = this
 	
 	this.xterm = pty.spawn('bash', [], {
 	  name: 'xterm-color',
@@ -68,9 +83,7 @@ Shell.prototype.connect = function() {
 	
 	// a chaque réception de data, on renvoit le tout au serveur principal
 	this.xterm.on('data', function(data) {
-		var device = new Device('xterm-color', true, server)
-		device.value = data
-		server.emit('value', device, 'shell')
+		shell.sendData(data)
 	});
 };
 
