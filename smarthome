@@ -46,9 +46,7 @@ SCRIPTNAME=/etc/init.d/$NAME
 #
 do_upgrade()
 {
-	cd /opt/smarthome
-	git fetch --all
-	git reset --hard origin/master
+	/opt/smarthome/upgrade.js	
 }
 
 #
