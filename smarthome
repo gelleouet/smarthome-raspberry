@@ -46,7 +46,8 @@ SCRIPTNAME=/etc/init.d/$NAME
 #
 do_upgrade()
 {
-	/opt/smarthome/upgrade.js	
+	chmod +x /opt/smarthome/upgrade.sh
+	/opt/smarthome/upgrade.sh
 }
 
 #
