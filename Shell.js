@@ -24,15 +24,15 @@ var Shell = function Shell(server) {
  * @param data
  */
 Shell.prototype.write = function(data) {
-	if (data == "close") {
-		this.free()
-	} else {
+	// demande nouvelle connexion
+	if (data == 'connect-shell') {
 		// on vérifie si déjà connecté
-		if (! this.xterm) {
-			this.connect()
+		if (this.xterm) {
+			this.free()
 		}
-		this.xterm.write(data)
+		this.connect()
 	}
+	this.xterm.write(data)
 };
 
 
@@ -53,6 +53,8 @@ Shell.prototype.free = function() {
  * @param data
  */
 Shell.prototype.connect = function() {
+	var server = this.server
+	
 	this.xterm = pty.spawn('bash', [], {
 	  name: 'xterm-color',
 	  cols: 80,
