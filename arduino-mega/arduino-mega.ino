@@ -1,3 +1,4 @@
+#include <SPI.h>
 #include <Wire.h>
 #include "BlueDot_BME280.h"
 
@@ -8,6 +9,7 @@ typedef void (*onInterrupt)();
 struct CompteurMaxSecData {
   int value;
   int max;
+  unsigned long maxTime;
   unsigned long lastValueTime;
   unsigned long lastDebounceTime; 
 };
@@ -24,9 +26,8 @@ int* _inValues;
 const int OUTPIN[] = {13,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47};
 const int OUTLENGTH = sizeof(OUTPIN) / sizeof(int);
 
-const unsigned long DEBOUNCE = 10;
-const unsigned long DEBOUNCE_USER = 500;
-const unsigned long INTERVALLE_COMPTEUR_SECONDE = 2000;
+const unsigned long DEBOUNCE = 5;
+const unsigned long INTERVALLE_COMPTEUR_SECONDE = 10000;
 const unsigned long SEND_TIMER = 60000 * 5; // toutes les 5 minutes
 unsigned long _lastSendTimer = 0;
 
@@ -34,7 +35,7 @@ const int COMPTEUR[] = {};
 const int CPTLENGTH = sizeof(COMPTEUR) / sizeof(int);
 volatile CompteurData* _compteurValues;
 
-const int COMPTEURSEC[] = {2,3};
+const int COMPTEURSEC[] = {2};
 const int CPTSECLENGTH = sizeof(COMPTEURSEC) / sizeof(int);
 volatile CompteurMaxSecData* _compteurSecValues;
 
@@ -171,7 +172,7 @@ void loop() {
   for (int idx=0; idx<INLENGTH; idx++) {
     // 2 lecture avec pause pour gerer les parasites
     int firstRead = digitalRead(INPIN[idx]);    
-    delay(5);
+    delay(DEBOUNCE);
     int secondRead = digitalRead(INPIN[idx]);
   
     if ((firstRead == secondRead) && (firstRead != _inValues[idx])) {
@@ -217,7 +218,8 @@ void sendCompteurValues() {
 
     for (int idx=0; idx<CPTSECLENGTH; idx++) {
       if (_compteurSecValues[idx].max > 0) {
-        sendValue(COMPTEURSEC[idx], _compteurSecValues[idx].max);        
+        // on ramène la valeur sur 1 seconde car la prise de valeur était sur INTERVALLE_COMPTEUR_SECONDE
+        sendValue(COMPTEURSEC[idx], (_compteurSecValues[idx].max / (_compteurSecValues[idx].maxTime / 1000)));        
       }      
       _compteurSecValues[idx].max = 0;
     }
@@ -316,10 +318,10 @@ void compteurMaxParSeconde(int idx) {
   ellapse = timer - _compteurSecValues[idx].lastValueTime;
 
   // reset toutes les X secondes et sauvegarde du max
-  // test aussi si le timer est revenu à 0 après avoit atteint les 50J
-  if (ellapse > INTERVALLE_COMPTEUR_SECONDE || _compteurSecValues[idx].lastValueTime > timer) {
+  if (ellapse > INTERVALLE_COMPTEUR_SECONDE) {
       if (_compteurSecValues[idx].value > _compteurSecValues[idx].max) {
          _compteurSecValues[idx].max = _compteurSecValues[idx].value;
+         _compteurSecValues[idx].maxTime = ellapse;
       }
     _compteurSecValues[idx].value = 0;
     _compteurSecValues[idx].lastValueTime = timer;
