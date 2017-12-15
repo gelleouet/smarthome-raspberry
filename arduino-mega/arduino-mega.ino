@@ -1,7 +1,6 @@
-#include <HomeEasy.h>
-#include <HomeEasyDefines.h>
-#include <HomeEasyPinDefines.h>
-#include <HomeEasyPortDefines.h>
+#include <Wire.h>
+#include "BlueDot_BME280.h"
+
 
 // pointer sur les méthodes interrupt
 typedef void (*onInterrupt)();
@@ -44,8 +43,10 @@ char _buffer[MAXBUFFER];
 volatile int _idxBuffer = 0;
 volatile boolean _bufferFilled = true;
 
-HomeEasy _homeEasy;
-volatile unsigned long _last433MessageTime = 0;
+BlueDot_BME280 _bme1;                                     //Object for Sensor 1
+BlueDot_BME280 _bme2;                                     //Object for Sensor 2
+int _bme1Detected = 0;                                    //Checks if Sensor 1 is available
+int _bme2Detected = 0;  
 
 
 /**
@@ -112,15 +113,28 @@ void setup() {
   
   Serial.begin(9600); 
 
-  _homeEasy = HomeEasy();  
-  _homeEasy.registerSimpleProtocolHandler(homeEasySimpleResult);
-  _homeEasy.registerAdvancedProtocolHandler(homeEasyAdvancedResult);
-  _homeEasy.init();
-
   // on previent l'agent du nombre de pins configurés en sortie
   // pas utile pour les entrées ca va remonter dès qu'une valeur sera détectée
   for (int idx=0; idx<OUTLENGTH; idx++) {
     sendValue(OUTPIN[idx], 0);
+  }
+
+  // configuration bme280
+  _bme1.parameter.I2CAddress = 0x77;                    //I2C Address for Sensor 1 (bme1)
+  _bme2.parameter.I2CAddress = 0x76;                    //I2C Address for Sensor 2 (bme2)
+
+  if (_bme1.init() != 0x60) {    
+    Serial.println("LOG BME_1 not found !");
+  } else {
+    Serial.println("LOG BME_1 found !");
+    _bme1Detected = 1;
+  }
+
+  if (_bme2.init() != 0x60) {    
+    Serial.println("LOG BME_2 not found !");
+  } else {
+    Serial.println("LOG BME_2 found !");
+    _bme2Detected = 1;
   }
 }
 
@@ -129,11 +143,23 @@ void setup() {
  * Envoi la valeur d'un pin vers le controller
  */
 void sendValue(int pin, int value) {
-   Serial.print("{\"mac\": \"arduino");
+   Serial.print("{\"mac\":\"arduino");
    Serial.print(pin);
-   Serial.print("\", \"value\":");
+   Serial.print("\",\"value\":");
    Serial.print(value);
    Serial.println("}");
+}
+
+
+/**
+ * Envoi d'une valeur avec une adresse mac paramétrée
+ */
+void sendValue(char* mac, float value) {
+  Serial.print("{\"mac\":\"");
+  Serial.print(mac);
+  Serial.print("\",\"value\":");
+  Serial.print(value);
+  Serial.println("}");
 }
 
 
@@ -202,6 +228,8 @@ void sendCompteurValues() {
       }
       _compteurValues[idx].value = 0;
     }
+
+    readBme280();
 
     _lastSendTimer = timer;
   }
@@ -335,35 +363,19 @@ boolean isInput(int pin) {
   return true; 
 }
 
-/**
- * Evénements réception données sur fréquence protocole HomeEasy (chacon)
- */
-void homeEasyAdvancedResult(unsigned long sender, unsigned int recipient, bool on, bool group)
-{
-  unsigned long nowTime = millis();
-  unsigned long ellapse = nowTime - _last433MessageTime;
 
-  if (ellapse < DEBOUNCE_USER) {
-    return;
+void readBme280() {
+  if (_bme1Detected) {
+    sendValue("bme280_1_temp", _bme1.readTempC());
+    sendValue("bme280_1_humd", _bme1.readHumidity());
+    sendValue("bme280_1_pres", _bme1.readPressure());
+    sendValue("bme280_1_alti", _bme1.readAltitudeMeter());
   }
-  
-  Serial.print("{\"mac\": \"");
-  Serial.print(sender);
-  Serial.print("-");
-  Serial.print(recipient);
-  Serial.print("\", \"value\":");
-  Serial.print(on ? 1 : 0);
-  Serial.println("}");
-  
-  _last433MessageTime = nowTime;
-}
-
-
-/**
- * Evénements réception données sur fréquence protocole HomeEasy (chacon)
- */
-void homeEasySimpleResult(unsigned int sender, unsigned int recipient, bool on)
-{
-  homeEasyAdvancedResult(sender, recipient, on, false);
+  if (_bme2Detected) {
+    sendValue("bme280_2_temp", _bme2.readTempC());
+    sendValue("bme280_2_humd", _bme2.readHumidity());
+    sendValue("bme280_2_pres", _bme2.readPressure());
+    sendValue("bme280_2_alti", _bme2.readAltitudeMeter());
+  }
 }
 
