@@ -111,13 +111,15 @@ void setup() {
   
   Serial.begin(9600); 
 
+  if (!_bme280.begin()) {
+    Serial.println("LOG BME280 not found");
+  }
+
   // on previent l'agent du nombre de pins configurés en sortie
   // pas utile pour les entrées ca va remonter dès qu'une valeur sera détectée
   for (int idx=0; idx<OUTLENGTH; idx++) {
     sendValue(OUTPIN[idx], 0);
   }
-
-  _bme280.begin();
 }
 
 
@@ -125,6 +127,18 @@ void setup() {
  * Envoi la valeur d'un pin vers le controller
  */
 void sendValue(int pin, int value) {
+   Serial.print("{\"mac\":\"arduino");
+   Serial.print(pin);
+   Serial.print("\",\"value\":");
+   Serial.print(value);
+   Serial.println("}");
+}
+
+
+/**
+ * Envoi la valeur d'un pin vers le controller
+ */
+void sendFloatValue(int pin, float value) {
    Serial.print("{\"mac\":\"arduino");
    Serial.print(pin);
    Serial.print("\",\"value\":");
@@ -148,7 +162,7 @@ void sendValue(char* mac, float value) {
 /**
  * Programme principal
  */
-void loop() {
+void loop() {  
   // lecture des pins IN
   for (int idx=0; idx<INLENGTH; idx++) {
     // 2 lecture avec pause pour gerer les parasites
@@ -195,12 +209,11 @@ void sendCompteurValues() {
   unsigned long timer = millis();
   unsigned long ellapse = timer - _lastSendTimer;
 
-  if (ellapse > SEND_TIMER || _lastSendTimer > timer) {
-
+  if (ellapse > SEND_TIMER) {
     for (int idx=0; idx<CPTSECLENGTH; idx++) {
       if (_compteurSecValues[idx].max > 0) {
-        // on ramène la valeur sur 1 seconde car la prise de valeur était sur INTERVALLE_COMPTEUR_SECONDE
-        sendValue(COMPTEURSEC[idx], (_compteurSecValues[idx].max / (_compteurSecValues[idx].maxTime / 1000)));        
+        // on ramène la valeur sur 1 seconde car la prise de valeur était sur INTERVALLE_COMPTEUR_SECONDE        
+        sendFloatValue(COMPTEURSEC[idx], (_compteurSecValues[idx].max / (_compteurSecValues[idx].maxTime / 1000.0F)));        
       }      
       _compteurSecValues[idx].max = 0;
     }
@@ -288,7 +301,7 @@ void parseBuffer() {
  */
 void compteurMaxParSeconde(int idx) {
   unsigned long timer = millis();
-
+  
   // gestion du debounce
   unsigned long ellapse = timer - _compteurSecValues[idx].lastDebounceTime;
 
@@ -348,8 +361,12 @@ boolean isInput(int pin) {
 
 
 void readBme280() {
-  sendValue("bme280_1_temp", _bme280.readTemperature());
-  sendValue("bme280_1_humd", _bme280.readHumidity() / 100.0F);
-  sendValue("bme280_1_pres", _bme280.readPressure());
+  float value = _bme280.readHumidity();
+  
+  if (value != 0) {
+    sendValue("bme280_1_temp", _bme280.readTemperature());
+    sendValue("bme280_1_humd", value);
+    sendValue("bme280_1_pres", _bme280.readPressure() / 100.0F);
+  }
 }
 
