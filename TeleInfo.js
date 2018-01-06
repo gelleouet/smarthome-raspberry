@@ -102,6 +102,8 @@ TeleInfo.prototype.init = function() {
 TeleInfo.prototype.onData = function(data) {
 	var lignes = data.split('\r\n');
 	var values = {};
+	var now = new Date();
+	var timer = now.getTime() - this.lastRead.getTime();
 	
 	for (var i=0; i < lignes.length; i++) {
 		this.parseData(lignes[i], values);
@@ -109,8 +111,6 @@ TeleInfo.prototype.onData = function(data) {
 	
 	// trame complète, on envoi un message au serveur
 	if (values.adco && values.motdetat && values.iinst && values.hchc && values.hchp) {
-		var now = new Date();
-		var timer = now.getTime() - this.lastRead.getTime();
 		var adps = values.adps && (timer >= TELEINFO_ADPS_TIMER);
 		
 		// on n'envoit le message que tous les X intervalles ou au 1er init
@@ -141,6 +141,9 @@ TeleInfo.prototype.onData = function(data) {
 			this.starting = false;
 			this.lastRead = now;
 		}
+	} else if (timer >= (2 * TELEINFO_VALUE_TIMER)) {
+		LOG.error(teleinfo, "Compteur " + teleinfo.mac + " : trame incomplete", values)
+		this.lastRead = now;
 	}
 }
 
