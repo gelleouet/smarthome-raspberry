@@ -15,8 +15,13 @@ console.log("-------------------------------------------------");
 
 // charge le fichier de config (synchrone)
 if (!config.load(__dirname + '/smarthome.credentials')) {
-	LOG.error(config, "Erreur reading config file")
-	exit()
+	LOG.error(config, "Erreur reading first config file ", __dirname + '/smarthome.credentials')
+	LOG.info(config, "Try second config fil...")
+	
+	if (!config.load('/boot/smarthome')) {
+		LOG.error(config, "Erreur reading second config file ", '/boot/smarthome')
+		exit()
+	}
 }
 
 
