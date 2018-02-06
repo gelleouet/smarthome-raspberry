@@ -14,7 +14,7 @@ console.log("-------------------------------------------------");
 
 
 // charge le fichier de config (synchrone)
-if (!config.load(__dirname + '/smarthome.credentials')) {
+if (!config.load('/boot/smarthome')) {
 	LOG.error(config, "Erreur reading config file")
 	exit()
 }
