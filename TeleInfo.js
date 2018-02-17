@@ -110,7 +110,7 @@ TeleInfo.prototype.onData = function(data) {
 	}
 	
 	// trame complète, on envoi un message au serveur
-	if (values.adco && values.motdetat && values.iinst && values.hchc && values.hchp) {
+	if (values.adco && values.motdetat && values.iinst && values.hchp) {
 		var adps = values.adps && (timer >= TELEINFO_ADPS_TIMER);
 		
 		// on n'envoit le message que tous les X intervalles ou au 1er init
@@ -142,7 +142,7 @@ TeleInfo.prototype.onData = function(data) {
 			this.lastRead = now;
 		}
 	} else if (timer >= (2 * TELEINFO_VALUE_TIMER)) {
-		LOG.error(teleinfo, "Compteur " + teleinfo.mac + " : trame incomplete", values)
+		LOG.error(this, "Compteur " + this.mac + " : trame incomplete", values)
 		this.lastRead = now;
 	}
 }
@@ -237,6 +237,10 @@ TeleInfo.prototype.parseData = function(data, values) {
 		} else if (tokens[0] == "HCHP") {
 			values.hchp = metavalue
 			metavalue.label = "Total heures pleines (Wh)"
+			metavalue.trace = true
+		} else if (tokens[0] == "BASE") {
+			values.hchp = metavalue
+			metavalue.label = "Total base (Wh)"
 			metavalue.trace = true
 		} else if (tokens[0] == "PTEC") {
 			values.ptec = metavalue
