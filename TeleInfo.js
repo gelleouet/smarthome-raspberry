@@ -20,6 +20,8 @@ var TELEINFO_VALUE_TIMER = 300000; // 5 minutes
 // l'agent enverra donc 4 messages pendant cette minute, le temps à l'application de réagir
 // au bout d'une minute, de toute facon, si la puissance dépasse toujours la limite, le compteur saute
 var TELEINFO_ADPS_TIMER = 15000; // 15 secondes
+// Timer pour le mode trace. Une fois activé, il s'arretera auto pour ne pas envoyer trop de données trop longtemps
+var TELEINFO_TRACE_TIMER = 120000; // 2 minutes
 
 /**
  * Constructor
@@ -33,6 +35,7 @@ var TeleInfo = function TeleInfo(server, id) {
 	this.starting = true;
 	this.timerCreate = false;
 	this.id = id
+	this.lastTrace = null
 };
 
 util.inherits(TeleInfo, Device);
@@ -104,6 +107,8 @@ TeleInfo.prototype.onData = function(data) {
 	var values = {};
 	var now = new Date();
 	var timer = now.getTime() - this.lastRead.getTime();
+	var isModeTrace = this.isModeTrace()
+	var isValueTimer = (timer >= TELEINFO_VALUE_TIMER) // le timer classique pour l'envoi toutes les X time 
 	
 	for (var i=0; i < lignes.length; i++) {
 		this.parseData(lignes[i], values);
@@ -113,9 +118,10 @@ TeleInfo.prototype.onData = function(data) {
 	if (values.adco && values.motdetat && values.iinst && values.hchp) {
 		var adps = values.adps && (timer >= TELEINFO_ADPS_TIMER);
 		
-		// on n'envoit le message que tous les X intervalles ou au 1er init
+		// on n'envoit le message que tous les X intervalles ou au 1er init (starting)
 		// ou si adps signalé tous les Y intervalles
-		if (this.starting || adps || (timer >= TELEINFO_VALUE_TIMER)) {
+		// ou mode trace activé
+		if (this.starting || adps || isValueTimer || isModeTrace) {
 			// création d'un nouvel objet à envoyer pour être thread-safe
 			var teleinfo = new TeleInfo(this.server)
 			teleinfo.mac = values.adco.value;
@@ -131,15 +137,22 @@ TeleInfo.prototype.onData = function(data) {
 				}
 			}
 			
-			LOG.info(teleinfo, "Compteur " + teleinfo.mac + " poll new value !", teleinfo.value, teleinfo.adps)
-			
 			// supprime les valeurs redondantes car pas mappé sur server
 			delete values.adco;
 			delete values.motdetat;
 			
-			this.server.emit("value", teleinfo);
-			this.starting = false;
-			this.lastRead = now;
+			// ne changer le dernier envoi que si toutes les conditions sont remplies
+			// SAUF le mode trace
+			if (this.starting || adps || isValueTimer) {
+				this.server.emit("value", teleinfo);
+				this.starting = false;
+				this.lastRead = now;
+				LOG.info(teleinfo, "Compteur " + teleinfo.mac + " poll new value !", teleinfo.value, teleinfo.adps)
+			} else {
+				// on est en mode trace, envoi d'un autre type de valeur pour ne pas le confondre
+				// avec valeur normale et éviter tout le workflow qui va avec
+				this.server.emit("value", teleinfo, "teleinfo-trace");
+			}
 		}
 	} else if (timer >= (2 * TELEINFO_VALUE_TIMER)) {
 		LOG.error(this, "Compteur " + this.mac + " : trame incomplete", values)
@@ -285,6 +298,42 @@ TeleInfo.prototype.checksum = function(value) {
 	
 	return (sum == value.charCodeAt(j+1));
 };
+
+
+/**
+ * Active/désactive le mode trace sur le teleinfo
+ * Avec ce mode, dès qu'une trame est complète elle est envoyée au serveur
+ * C'est de la lecture en continu
+ */
+TeleInfo.prototype.processMessage = function(message) {
+	if (message.header == "teleinfo-start-trace") {
+		// remet à la date d'activation du mode
+		this.lastTrace = new Date()
+		LOG.info(this, "Start trace mode")
+	} else if (message.header == "teleinfo-stop-trace") {
+		this.lastTrace = null
+		LOG.info(this, "End trace mode")
+	}
+}
+
+
+/**
+ * Vérifie si le mode trace est activé et si oui
+ * est-ce que le timer est écoulé
+ * Gère du coup la désactivation auto du mode trace
+ */
+TeleInfo.prototype.isModeTrace = function() {
+	if (this.lastTrace) {
+		var timer = new Date().getTime() - this.lastTrace.getTime()
+		
+		if (timer > TELEINFO_TRACE_TIMER) {
+			this.lastTrace = null
+			LOG.info(this, "End auto trace mode")
+		}
+	}
+	
+	return this.lastTrace != null
+}
 
 
 

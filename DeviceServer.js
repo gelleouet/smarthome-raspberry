@@ -118,8 +118,13 @@ DeviceServer.prototype.sendMessage = function(message, onerror) {
 		}
 	} else if (message.header == "shell") {
 		this.shell.write(message.data)
+	} else if (message.header.contains("teleinfo")) {
+		for (driverName in this.drivers) {
+			if (driverName.contains("teleinfo")) {
+				this.drivers[driverName].processMessage(message)
+			}
+		}
 	} else {
-	
 		LOG.error(this, "Header not recognized !", message.header);
 	}
 }
