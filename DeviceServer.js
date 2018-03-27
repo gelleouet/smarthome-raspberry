@@ -118,9 +118,9 @@ DeviceServer.prototype.sendMessage = function(message, onerror) {
 		}
 	} else if (message.header == "shell") {
 		this.shell.write(message.data)
-	} else if (message.header.contains("teleinfo")) {
+	} else if (message.header.indexOf("teleinfo") != -1) {
 		for (driverName in this.drivers) {
-			if (driverName.contains("teleinfo")) {
+			if (driverName.indexOf("teleinfo") != -1) {
 				this.drivers[driverName].processMessage(message)
 			}
 		}

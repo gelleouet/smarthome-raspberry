@@ -21,7 +21,7 @@ var TELEINFO_VALUE_TIMER = 300000; // 5 minutes
 // au bout d'une minute, de toute facon, si la puissance dépasse toujours la limite, le compteur saute
 var TELEINFO_ADPS_TIMER = 15000; // 15 secondes
 // Timer pour le mode trace. Une fois activé, il s'arretera auto pour ne pas envoyer trop de données trop longtemps
-var TELEINFO_TRACE_TIMER = 120000; // 2 minutes
+var TELEINFO_TRACE_TIMER = 300000; // 5 minutes
 
 /**
  * Constructor
@@ -122,6 +122,9 @@ TeleInfo.prototype.onData = function(data) {
 		// ou si adps signalé tous les Y intervalles
 		// ou mode trace activé
 		if (this.starting || adps || isValueTimer || isModeTrace) {
+			// on profite pour sauvegarder le mac du teleinfo sur l'objet principal
+			this.mac = values.adco.value
+
 			// création d'un nouvel objet à envoyer pour être thread-safe
 			var teleinfo = new TeleInfo(this.server)
 			teleinfo.mac = values.adco.value;
@@ -328,6 +331,7 @@ TeleInfo.prototype.isModeTrace = function() {
 		
 		if (timer > TELEINFO_TRACE_TIMER) {
 			this.lastTrace = null
+			this.server.emit("value", this, "teleinfo-trace-stop")
 			LOG.info(this, "End auto trace mode")
 		}
 	}
