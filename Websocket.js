@@ -14,7 +14,7 @@ require('ssl-root-cas/latest')
 
 var WEBSOCKET_TIMER = 5000; // 5 secondes
 var HTTP_TIMEOUT = 10000; // 10 secondes
-var WEBSOCKET_PING = 300000; // toutes les 5 minutes
+var WEBSOCKET_PING = 60000; // toutes les minutes
 
 /**
  * Constructeur Websocket
@@ -30,6 +30,7 @@ var Websocket = function Websocket() {
 	this.subscribing = false;
 	this.credentials = null;
 	this.lastSendMessage = new Date();
+	this.pongTimeout = null
 	
 	this.onMessage = null;
 	this.onConnected = null;
@@ -76,9 +77,15 @@ Websocket.prototype.listen = function() {
 			var now = new Date();
 			
 			if ((now.getTime() - websocket.lastSendMessage.getTime()) > WEBSOCKET_PING) {
-				websocket.sendMessage({header: 'Hello'});
-				websocket.lastSendMessage = now;
-				LOG.info(websocket, 'Send ping message');
+				websocket.sendMessage({header: 'ping'});
+				websocket.lastSendMessage = now
+				
+				// creation d'un timeout pour attendre le pong
+				// et fermer la connexion si pas de reponse
+				websocket.pongTimeout = setTimeout(function() {
+					LOG.error(websocket, "Ping has receive no pong !")
+					websocket.close()
+				}, WEBSOCKET_TIMER)
 			}
 		}
 	}, WEBSOCKET_TIMER);
@@ -191,6 +198,7 @@ Websocket.prototype.credential = function() {
 Websocket.prototype.close = function() {
 	LOG.info(this, 'Closing channel...');
 	this.subscribing = false;
+	this.pongTimeout = null
 	
 	if (this.ws) {
 		this.ws.close();
@@ -292,8 +300,17 @@ Websocket.prototype.websocket = function() {
 			
 			if (message.applicationKey == websocket.applicationKey && message.username == websocket.username &&
 					message.mac == websocket.mac && message.token == websocket.token) {
-				if (websocket.onMessage && message.data) {
-					websocket.onMessage(message.data);
+				if (message.data) {
+					// cas special du ping-pong
+					if (message.data.header == "pong") {
+						// supprime le timeout s'il est toujours
+						if (websocket.pongTimeout) {
+							clearTimeout(websocket.pongTimeout)
+							websocket.pongTimeout = null
+						}
+					} else if (websocket.onMessage) {
+						websocket.onMessage(message.data);
+					}
 				}
 			} else {
 				LOG.error(websocket, "Authentification header error !");
