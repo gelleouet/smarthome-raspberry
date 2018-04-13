@@ -85,7 +85,7 @@ Websocket.prototype.listen = function() {
 				websocket.pongTimeout = setTimeout(function() {
 					LOG.error(websocket, "Ping has receive no pong !")
 					websocket.close()
-				}, WEBSOCKET_TIMER)
+				}, HTTP_TIMEOUT)
 			}
 		}
 	}, WEBSOCKET_TIMER);
