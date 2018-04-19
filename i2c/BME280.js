@@ -7,8 +7,8 @@
  * @author gregory.elleouet@gmail.com
  */
 var util = require('util');
-var Device = require("./Device").Device;
-var LOG = require("./Log").newInstance();
+var Device = require("../Device").Device;
+var LOG = require("../Log").newInstance();
 
 
 var SMARTHOME_CLASS_TEMP = "smarthome.automation.deviceType.Temperature";

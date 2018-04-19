@@ -37,6 +37,7 @@ I2C.prototype.init = function() {
 	var i2c = this
 	
 	if (this.credentials.i2c) {
+		LOG.info(this, "Init")
 		this.i2cBus = i2cDriver.openSync(this.credentials.i2c.bus)
 		
 		for (deviceName in this.credentials.i2c) {
@@ -65,11 +66,17 @@ I2C.prototype.init = function() {
  * @see Device.free
  */
 I2C.prototype.free = function() {
-	for (deviceName in this.devices) {
-		this.devices[deviceName].free()
+	if (this.credentials.i2c) {
+		LOG.info(this, "Free")
+
+		for (deviceName in this.devices) {
+			this.devices[deviceName].free()
+		}
+		
+		if (this.i2cBus) {
+			this.i2cBus.closeSync()
+		}
 	}
-	
-	this.i2cBus.closeSync()
 };
 
 
