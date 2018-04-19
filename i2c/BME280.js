@@ -150,7 +150,7 @@ BME280.prototype.read = function() {
     var t_fine = tvar1 + tvar2;
 
     var temperature_C = ((t_fine * 5 + 128) >> 8) / 100;
-    sendTemp(temperature_C)
+    this.sendTemp(temperature_C)
 
     // Pressure
     var adc_P = this.uint20(buffer[0], buffer[1], buffer[2]);
@@ -171,7 +171,7 @@ BME280.prototype.read = function() {
       p = p + (pvar1 + pvar2 + this.calibrations.dig_P7) / 16;
 
       pressure_hPa = p / 100;
-      sendPres(pressure_hPa)
+      this.sendPres(pressure_hPa)
     }
 
     // Humidity (available on the BME280, will be zero on the BMP280 since it has no humidity sensor)
@@ -183,7 +183,7 @@ BME280.prototype.read = function() {
     h = h * (1 - this.calibrations.dig_H1 * h / 524288);
 
     var humidity = (h > 100) ? 100 : (h < 0 ? 0 : h);
-    sendHumd(humidity)
+    this.sendHumd(humidity)
 };
 
 
