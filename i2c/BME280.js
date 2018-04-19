@@ -88,9 +88,9 @@ BME280.prototype.init = function() {
 		}
 		
 		// Humidity 16x oversampling
-		this.i2cBus.writeByteSync(this.i2cAddress, REGISTER_CONTROL_HUM, 0b00000101)
+		this.i2cBus.writeByteSync(this.i2cAddress, REGISTER_CONTROL_HUM, 0x05)
 		// Temperture/pressure 16x oversampling, normal mode
-		this.i2cBus.writeByteSync(this.i2cAddress, REGISTER_CONTROL, 0b10110111)
+		this.i2cBus.writeByteSync(this.i2cAddress, REGISTER_CONTROL, 0xB7)
 	}
 };
 
