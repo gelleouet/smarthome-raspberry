@@ -73,11 +73,11 @@ I2C.prototype.init = function() {
  */
 I2C.prototype.free = function() {
 	if (this.credentials.i2c) {
-		LOG.info(this, "Free")
-
 		for (deviceName in this.devices) {
 			this.devices[deviceName].free()
 		}
+		
+		LOG.info(this, "Free")
 		
 		if (this.i2cBus) {
 			this.i2cBus.closeSync()
