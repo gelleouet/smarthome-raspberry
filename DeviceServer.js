@@ -10,6 +10,7 @@ var ZWave = require("./ZWave").ZWave;
 var Gpio = require("./Gpio").Gpio;
 var Arduino = require("./Arduino").Arduino;
 var Shell = require("./Shell").Shell;
+var I2C = require("./I2C").I2C;
 var LOG = require("./Log").newInstance();
 
 
@@ -30,6 +31,7 @@ var DeviceServer = function DeviceServer() {
 	this.drivers['zwave'] = new ZWave(this);
 	this.drivers['gpio'] = new Gpio(this);
 	this.drivers['arduino'] = new Arduino(this);
+	this.drivers['i2c'] = new I2C(this);
 };
 
 util.inherits(DeviceServer, events.EventEmitter);
