@@ -60,6 +60,7 @@ var BME280 = function BME280(server, i2cBus) {
 	this.i2cBus = i2cBus
 	this.i2cAddress = null
 	this.calibrations = null
+	this.initOk = false
 };
 
 util.inherits(BME280, Device);
@@ -73,9 +74,23 @@ BME280.prototype.init = function() {
 	
 	if (this.credentials.address) {
 		this.i2cAddress = this.credentials.address
-		this.i2cBus.writeByteSync(this.i2cAddress, REGISTER_CHIPID, 0)
 		
-		var chipId = this.i2cBus.readByteSync(this.i2cAddress, REGISTER_CHIPID)
+		try {
+			this.i2cBus.writeByteSync(this.i2cAddress, REGISTER_CHIPID, 0)
+		} catch (ex) {
+			LOG.eror(this, "Cannot write chip register !", this.i2cAddress, ex)
+			return
+		}
+		
+		var chipId
+		
+		try {
+			chipId = this.i2cBus.readByteSync(this.i2cAddress, REGISTER_CHIPID)
+		} catch (ex) {
+			LOG.eror("Cannot get chip ID !", this.i2cAddress, ex)
+			return
+		}
+		
 		
 		if (chipId != CHIP_ID_BME280) {
 			LOG.error(this, "Chip ID not recognized !", chipId)
@@ -83,14 +98,21 @@ BME280.prototype.init = function() {
 		}
 		
 		if (! this.loadCalibration()) {
-			LOG.error(this, "Calibration reading canceled !")
+			LOG.error(this, "Cannot get calibration !")
 			return
 		}
 		
-		// Humidity 16x oversampling
-		this.i2cBus.writeByteSync(this.i2cAddress, REGISTER_CONTROL_HUM, 0x05)
-		// Temperture/pressure 16x oversampling, normal mode
-		this.i2cBus.writeByteSync(this.i2cAddress, REGISTER_CONTROL, 0xB7)
+		try {
+			// Humidity 16x oversampling
+			this.i2cBus.writeByteSync(this.i2cAddress, REGISTER_CONTROL_HUM, 0x05)
+			// Temperture/pressure 16x oversampling, normal mode
+			this.i2cBus.writeByteSync(this.i2cAddress, REGISTER_CONTROL, 0xB7)
+		} catch (ex) {
+			LOG.error(this, "Cannot configure sampling !", ex)
+			return
+		}
+		
+		this.initOk = true
 	}
 };
 
@@ -107,13 +129,19 @@ BME280.prototype.free = function() {
  * @see Device.read
  */
 BME280.prototype.read = function() {	
-	if (! this.calibrations) {
-		LOG.error("Cannot read without calibrations !")
+	if (! this.initOk) {
+		LOG.error(this, "Cannot read : init cot completed !")
 		return
 	}
 	
 	var buffer = new Buffer(8)
-	this.i2cBus.readI2cBlockSync(this.i2cAddress, REGISTER_PRESSURE_DATA, 8, buffer)
+	
+	try {
+		this.i2cBus.readI2cBlockSync(this.i2cAddress, REGISTER_PRESSURE_DATA, 8, buffer)
+	} catch (ex) {
+		LOG.error(this, "Cannot read values register !", ex)
+		return
+	}
 	
 	// Temperature (temperature first since we need t_fine for pressure and humidity)
     var adc_T = this.uint20(buffer[3], buffer[4], buffer[5]);

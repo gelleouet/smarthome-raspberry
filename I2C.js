@@ -38,7 +38,13 @@ I2C.prototype.init = function() {
 	
 	if (this.credentials.i2c) {
 		LOG.info(this, "Init")
-		this.i2cBus = i2cDriver.openSync(this.credentials.i2c.bus)
+		
+		try {
+			this.i2cBus = i2cDriver.openSync(this.credentials.i2c.bus)
+		} catch (ex) {
+			LOG.error(this, "Cannot open I2C bus !", this.credentials.i2c.bus, ex)
+			return
+		}
 		
 		for (deviceName in this.credentials.i2c) {
 			if (deviceName == "bme280") {
