@@ -191,9 +191,9 @@ BME280.prototype.sendTemp = function(value) {
 	var bme = new BME280(this.server)
     bme.implClass = SMARTHOME_CLASS_TEMP
     bme.mac = "bme280_1_temp"
-    bme.value = value
+    bme.value = Math.round(value / 100.) / 10.
     
-    LOG.info(this, "Read temperature ", value)
+    LOG.info(this, "Read temperature ", bme.value)
     this.server.emit('value', bme);
 };
 
@@ -202,9 +202,9 @@ BME280.prototype.sendHumd = function(value) {
 	var bme = new BME280(this.server)
     bme.implClass = SMARTHOME_CLASS_HUMD
     bme.mac = "bme280_1_humd"
-    bme.value = value
+    bme.value = Math.round(value / 100.) / 10.
     
-    LOG.info(this, "Read humidite ", value)
+    LOG.info(this, "Read humidite ", bme.value)
     this.server.emit('value', bme);
 };
 
@@ -213,9 +213,9 @@ BME280.prototype.sendPres = function(value) {
 	var bme = new BME280(this.server)
     bme.implClass = SMARTHOME_CLASS_PRES
     bme.mac = "bme280_1_pres"
-    bme.value = value
+    bme.value = Math.round(value)
     
-    LOG.info(this, "Read pression ", value)
+    LOG.info(this, "Read pression ", bme.value)
     this.server.emit('value', bme);
 };
 
