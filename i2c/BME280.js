@@ -192,6 +192,8 @@ BME280.prototype.sendTemp = function(value) {
     bme.implClass = SMARTHOME_CLASS_TEMP
     bme.mac = "bme280_1_temp"
     bme.value = value
+    
+    LOG.info(this, "Read temperature ", value)
     this.server.emit('value', bme);
 };
 
@@ -201,6 +203,8 @@ BME280.prototype.sendHumd = function(value) {
     bme.implClass = SMARTHOME_CLASS_HUMD
     bme.mac = "bme280_1_humd"
     bme.value = value
+    
+    LOG.info(this, "Read humidite ", value)
     this.server.emit('value', bme);
 };
 
@@ -210,6 +214,8 @@ BME280.prototype.sendPres = function(value) {
     bme.implClass = SMARTHOME_CLASS_PRES
     bme.mac = "bme280_1_pres"
     bme.value = value
+    
+    LOG.info(this, "Read pression ", value)
     this.server.emit('value', bme);
 };
 
