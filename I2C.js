@@ -60,8 +60,10 @@ I2C.prototype.init = function() {
 		}
 	}
 	
-	// Démarre une lecture toutes les X minutes
-	// pour tous les devices
+	// 1ere lecture au demarrage
+	i2c.read();
+	
+	// puis lecture tous les X temps
 	setInterval(function() {
 		i2c.read();
 	}, READ_INTERVAL);
