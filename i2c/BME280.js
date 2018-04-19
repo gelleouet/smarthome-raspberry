@@ -78,7 +78,7 @@ BME280.prototype.init = function() {
 		try {
 			this.i2cBus.writeByteSync(this.i2cAddress, REGISTER_CHIPID, 0)
 		} catch (ex) {
-			LOG.eror(this, "Cannot write chip register !", this.i2cAddress, ex)
+			LOG.error(this, "Cannot write chip register !", this.i2cAddress, ex)
 			return
 		}
 		
@@ -87,7 +87,7 @@ BME280.prototype.init = function() {
 		try {
 			chipId = this.i2cBus.readByteSync(this.i2cAddress, REGISTER_CHIPID)
 		} catch (ex) {
-			LOG.eror("Cannot get chip ID !", this.i2cAddress, ex)
+			LOG.error("Cannot get chip ID !", this.i2cAddress, ex)
 			return
 		}
 		
