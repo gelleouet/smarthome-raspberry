@@ -7,7 +7,7 @@ HOME_PATH="/home/pi/smarthome"
 # recupere derniere version du programme
 cd $SMARTHOME_PATH
 git fetch --all
-git reset --hard origin/master
+git reset --hard
 
 
 # Execute tous le scripts d'upgrade pas encore exécutés

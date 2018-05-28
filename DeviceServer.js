@@ -11,6 +11,7 @@ var Gpio = require("./Gpio").Gpio;
 var Arduino = require("./Arduino").Arduino;
 var RFXCom = require("./RFXCom").RFXCom;
 var Shell = require("./Shell").Shell;
+var I2C = require("./I2C").I2C;
 var LOG = require("./Log").newInstance();
 
 
@@ -41,6 +42,7 @@ var DeviceServer = function DeviceServer(credentials) {
 	this.drivers['gpio'] = new Gpio(this);
 	this.drivers['arduino'] = new Arduino(this);
 	this.drivers['rfxcom'] = new RFXCom(this);
+	this.drivers['i2c'] = new I2C(this);
 };
 
 util.inherits(DeviceServer, events.EventEmitter);
