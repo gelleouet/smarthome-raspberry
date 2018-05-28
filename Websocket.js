@@ -12,9 +12,10 @@ require('ssl-root-cas/latest')
 	.inject();
 
 
-var WEBSOCKET_TIMER = 5000; // 5 secondes
-var HTTP_TIMEOUT = 10000; // 10 secondes
-var WEBSOCKET_PING = 60000; // toutes les minutes
+var VERIF_WEBSOCKET_TIMER = 10000; // 10 secondes
+// Doit être supérieur au timeout, sinon le pong n'a pas le temps de revenir avant le prochain ping
+var PING_WEBSOCKET_TIMER = 30000; // 30 secondes
+var HTTP_TIMEOUT = 5000; // 5 secondes
 
 /**
  * Constructeur Websocket
@@ -30,10 +31,12 @@ var Websocket = function Websocket() {
 	this.subscribing = false;
 	this.credentials = null;
 	this.lastSendMessage = new Date();
+	this.lastPing = new Date();
 	this.pongTimeout = null
 	
 	this.onMessage = null;
 	this.onConnected = null;
+	this.onClosed = null;
 	
 	var websocket = this;
 	
@@ -66,29 +69,26 @@ Websocket.prototype.listen = function() {
 	setInterval(function() {
 		if (!websocket.ws || websocket.ws.readyState == WsWebSocket.CLOSED || websocket.ws.readyState == WsWebSocket.CLOSING) {
 			if (!websocket.subscribing) {
-				LOG.info(websocket, 'Channel is closed : try reconnecting...');
 				websocket.emit('subscribe');
-			} else {
-				LOG.info(websocket, 'Channel is closed but current subscribing');
 			}
 		} else {
 			// le websocket est connecté mais si pas d'activité, la connexion peut être perdue
-			// envoi d'un message fictif toutes les WEBSOCKET_PING
+			// envoi d'un message fictif ping
 			var now = new Date();
 			
-			if ((now.getTime() - websocket.lastSendMessage.getTime()) > WEBSOCKET_PING) {
+			if ((now.getTime() - websocket.lastPing.getTime()) > PING_WEBSOCKET_TIMER) {
 				websocket.sendMessage({header: 'ping'});
-				websocket.lastSendMessage = now
+				websocket.lastPing = now
 				
 				// creation d'un timeout pour attendre le pong
 				// et fermer la connexion si pas de reponse
 				websocket.pongTimeout = setTimeout(function() {
-					LOG.error(websocket, "Ping has receive no pong !")
+					LOG.error(websocket, "Ping no receive pong !")
 					websocket.close()
 				}, HTTP_TIMEOUT)
 			}
 		}
-	}, WEBSOCKET_TIMER);
+	}, VERIF_WEBSOCKET_TIMER);
 }
 
 
@@ -97,7 +97,6 @@ Websocket.prototype.listen = function() {
  * et récupérer un token de connexion pour le websocket
  */
 Websocket.prototype.subscribe = function() {
-	LOG.info(this, "Subscribe for new token...");
 	var websocket = this;
 	
 	if (this.credential()) {
@@ -132,7 +131,6 @@ Websocket.prototype.subscribe = function() {
 					websocket.websocketUrl = token.websocketUrl;
 					
 					if (websocket.token && websocket.websocketUrl) {
-						LOG.info(websocket, 'Subscribe find new token : try openning channel');
 						websocket.emit('websocket');
 						return true;
 					} else {
@@ -158,8 +156,6 @@ Websocket.prototype.subscribe = function() {
  * @return true si les infos obligatoires sont présentes
  */
 Websocket.prototype.credential = function() {
-	LOG.info(this, "Credential loading...");
-	
 	if (this.credentials) {
 		this.username = this.credentials.username;
 		this.applicationKey = this.credentials.applicationKey;
@@ -168,10 +164,11 @@ Websocket.prototype.credential = function() {
 		this.mac = this.credentials.mac; 
 		
 		var network = os.networkInterfaces();
-		LOG.info(this, 'Find network interface', network);
 		
 		if (network.eth0 || network.wlan0) {
 			this.address = network.eth0 ? network.eth0[0].address : network.wlan0[0].address;
+			LOG.info(this, 'Find network interface', this.address);
+			
 			// pas d'info mac sur nodejs v0.10. donc il faut le rajouter dans les credentials
 			if (!this.mac) {
 				LOG.info(this, 'No mac from credential. Try get it from network...');
@@ -196,13 +193,22 @@ Websocket.prototype.credential = function() {
  * Libère les réssources et ferme le websocket
  */
 Websocket.prototype.close = function() {
-	LOG.info(this, 'Closing channel...');
+	LOG.info(this, 'Closing channel');
 	this.subscribing = false;
-	this.pongTimeout = null
+	this.lastPing = new Date()
+	
+	if (this.pongTimeout) {
+		clearTimeout(this.pongTimeout)
+		this.pongTimeout = null
+	}
 	
 	if (this.ws) {
 		this.ws.close();
 		this.ws = null;
+	}
+	
+	if (this.onClosed) {
+		this.onClosed()
 	}
 };
 
@@ -213,8 +219,9 @@ Websocket.prototype.close = function() {
  * y ajouter les infos de connexion
  * 
  * @param message
+ * @param onSendCallback
  */
-Websocket.prototype.sendMessage = function(message, onerror) {
+Websocket.prototype.sendMessage = function(message, onSendCallback) {
 	var websocket = this;
 	
 	if (this.ws) {
@@ -229,18 +236,16 @@ Websocket.prototype.sendMessage = function(message, onerror) {
 		var jsonData = JSON.stringify(data);
 		
 		this.ws.send(jsonData, {compress: true}, function ack(error) {
-			if (error) {
-				LOG.error(websocket, 'sendMessage error', error);
-				if (onerror) {
-					onerror(error, message);
-				}
-			} else {
+			if (!error) {
 				websocket.lastSendMessage = new Date();
-				//LOG.info(websocket, 'sendMessage complete', [message]);
+			}
+			
+			if (onSendCallback) {
+				onSendCallback(error, message);
 			}
 		});
-	} else if (onerror) {
-		onerror('Websocket not connected !', message);
+	} else if (onSendCallback) {
+		onSendCallback('Websocket not connected !', message);
 	}
 };
 
@@ -271,8 +276,6 @@ Websocket.prototype.websocket = function() {
 		this.ws.on('open', function() {
 			LOG.info(websocket, 'Channel connected !');
 			websocket.subscribing = false;
-			// vérifie que le channel fonctionne
-			websocket.sendMessage({header: 'Hello'});
 			
 			if (websocket.onConnected) {
 				websocket.onConnected();

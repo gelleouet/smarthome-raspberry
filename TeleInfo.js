@@ -11,9 +11,7 @@ var Device = require("./Device").Device;
 var LOG = require("./Log").newInstance();
 
 
-var SMARTHOME_CLASS = "smarthome.automation.deviceType.TeleInformation"
 var TELEINFO_CHECK_TIMER = 10000; // 10 secondes
-var TELEINFO_VALUE_TIMER = 300000; // 5 minutes
 // Timer pour l'envoide valeurs si dépassement puissance
 // Le téléinfo envoit ce message pendant 1 minute 
 // (cf http://www.planete-domotique.com/notices/ERDF-NOI-CPT_O2E.pdf)
@@ -31,7 +29,8 @@ var TeleInfo = function TeleInfo(server, id) {
 	Device.call(this, null, true, server);
 	
 	this.metavalues = {};
-	this.implClass = SMARTHOME_CLASS
+	this.implClass = server.deviceClass('teleinfo')
+	this.frequenceTeleinfo = server.frequence('teleinfo')
 	this.starting = true;
 	this.timerCreate = false;
 	this.id = id
@@ -49,12 +48,12 @@ TeleInfo.prototype.init = function() {
 	var portPath = (this.id && this.id > 1) ? ("teleinfoPort" + this.id) : "teleinfoPort"
 	
 	if (!device.credentials || !device.credentials[portPath]) {
-		LOG.error(device, "Teleinfo init cancel : port not defined !")
+		LOG.error(device, "Cancel init : port not defined !")
 		return
 	}
 	
 	if (!this.object) {
-		LOG.info(device, "Init (not connected)... port:", [portPath, this.credentials[portPath]]);
+		LOG.info(device, "Init", [portPath, this.credentials[portPath]]);
 		
 		device.object = new serialport.SerialPort(this.credentials[portPath], {
 			baudrate: 1200,
@@ -108,7 +107,7 @@ TeleInfo.prototype.onData = function(data) {
 	var now = new Date();
 	var timer = now.getTime() - this.lastRead.getTime();
 	var isModeTrace = this.isModeTrace()
-	var isValueTimer = (timer >= TELEINFO_VALUE_TIMER) // le timer classique pour l'envoi toutes les X time 
+	var isValueTimer = (timer >= (this.frequenceTeleinfo * 1000)) // le timer classique pour l'envoi toutes les X time 
 	
 	for (var i=0; i < lignes.length; i++) {
 		this.parseData(lignes[i], values);
@@ -150,14 +149,14 @@ TeleInfo.prototype.onData = function(data) {
 				this.server.emit("value", teleinfo);
 				this.starting = false;
 				this.lastRead = now;
-				LOG.info(teleinfo, "Compteur " + teleinfo.mac + " poll new value !", teleinfo.value, teleinfo.adps)
+				LOG.info(teleinfo, "TIC", [teleinfo.mac, teleinfo.value, teleinfo.adps, teleinfo.frequenceTeleinfo])
 			} else {
 				// on est en mode trace, envoi d'un autre type de valeur pour ne pas le confondre
 				// avec valeur normale et éviter tout le workflow qui va avec
 				this.server.emit("value", teleinfo, "teleinfo-trace");
 			}
 		}
-	} else if (timer >= (2 * TELEINFO_VALUE_TIMER)) {
+	} else if (timer >= (2 * this.frequenceTeleinfo * 1000)) {
 		LOG.error(this, "Compteur " + this.mac + " : trame incomplete", values)
 		this.lastRead = now;
 	}

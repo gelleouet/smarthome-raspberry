@@ -11,10 +11,8 @@ var Device = require("./Device").Device;
 var LOG = require("./Log").newInstance();
 
 
-var SMARTHOME_CLASS = "smarthome.automation.deviceType.Temperature"
 var ONEWIRE_PATH = '/sys/bus/w1/devices/';
 var ONEWIRE_FAMILY_TEMPERATURE = '28';
-var READ_INTERVAL = 60000 * 5;	// toutes les 5 minutes
 
 
 ///etc/modprobe.d/
@@ -26,7 +24,8 @@ var READ_INTERVAL = 60000 * 5;	// toutes les 5 minutes
  */
 var OneWire = function OneWire(server) {
 	Device.call(this, null, true, server);
-	this.implClass = SMARTHOME_CLASS
+	this.implClass = server.deviceClass('temperature')
+	this.frequenceTemperature = server.frequence('temperature')
 };
 
 util.inherits(OneWire, Device);
@@ -37,13 +36,7 @@ util.inherits(OneWire, Device);
  */
 OneWire.prototype.init = function() {
 	LOG.info(this, "Init")
-	this.scanOneWireBus();
-	var device = this;
-	
-	// relance une lecture différée
-	setTimeout(function() {
-		device.init();
-	}, READ_INTERVAL);
+	this.scanOneWireBus(true)
 };
 
 
@@ -94,7 +87,7 @@ OneWire.prototype.read = function() {
 //								convertValue = intPart + 1;
 //							}
 							
-							LOG.info(device, 'Sonde ' + device.mac + ' detected !', [device.value, convertValue]);
+							LOG.info(device, 'Dallas Temperature', [device.mac, convertValue, device.frequenceTemperature])
 							device.value = convertValue;
 							device.server.emit('value', device);
 						}
@@ -155,10 +148,11 @@ OneWire.prototype.resetConfig = function() {
 
 /**
  * Scanne le bus 1-Wire et lance la lecture des sondes trouvées
+ * 
+ * @param reScan relance une lecture différée
  */
-OneWire.prototype.scanOneWireBus = function() {	
+OneWire.prototype.scanOneWireBus = function(reScan) {	
 	var device = this;
-	LOG.info(device, "Scan 1-Wire bus")
 	
 	// le path des devices 1-wire
 	fs.readdir(ONEWIRE_PATH, function(error, files) {
@@ -176,6 +170,13 @@ OneWire.prototype.scanOneWireBus = function() {
 			});
 		}
 	});
+	
+	if (reScan) {
+		// relance une lecture différée
+		setTimeout(function() {
+			device.scanOneWireBus(true)
+		}, device.frequenceTemperature * 1000)
+	}
 }
 
 

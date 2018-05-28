@@ -28,13 +28,13 @@ util.inherits(Config, events.EventEmitter);
  * 
  */
 Config.prototype.load = function(configFile) {
-	LOG.info(this, "Loading...", configFile)
+	LOG.info(this, "Try loading config ", configFile)
 	
 	try {
 		var buffer = fs.readFileSync(configFile);
 		this.credentials = JSON.parse(buffer);
 	} catch (ex) {
-		LOG.error(this, 'Reading config file', ex);
+		LOG.error(this, 'Cannot load config ', configFile);
 		return false;
 	}
 	

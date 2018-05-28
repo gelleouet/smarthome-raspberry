@@ -9,19 +9,29 @@ var OneWire = require("./OneWire").OneWire;
 var ZWave = require("./ZWave").ZWave;
 var Gpio = require("./Gpio").Gpio;
 var Arduino = require("./Arduino").Arduino;
+var RFXCom = require("./RFXCom").RFXCom;
 var Shell = require("./Shell").Shell;
 var LOG = require("./Log").newInstance();
 
+
+var DEFAUT_FREQUENCE = 300 // 5min en sec
+
+var DEVICE_CLASS = {
+	temperature: "smarthome.automation.deviceType.Temperature",
+	humidite: "smarthome.automation.deviceType.Humidite",
+	teleinfo: "smarthome.automation.deviceType.TeleInformation",
+	compteur: "smarthome.automation.deviceType.Compteur",
+	capteur: "smarthome.automation.deviceType.Capteur"
+}
 
 
 /**
  * 
  */
-var DeviceServer = function DeviceServer() {
+var DeviceServer = function DeviceServer(credentials) {
 	this.onMessage = null;
-	
 	this.drivers = []
-	this.credentials = null
+	this.credentials = credentials
 	this.shell = new Shell(this)
 	
 	this.drivers['teleinfo'] = new TeleInfo(this, 1);
@@ -30,6 +40,7 @@ var DeviceServer = function DeviceServer() {
 	this.drivers['zwave'] = new ZWave(this);
 	this.drivers['gpio'] = new Gpio(this);
 	this.drivers['arduino'] = new Arduino(this);
+	this.drivers['rfxcom'] = new RFXCom(this);
 };
 
 util.inherits(DeviceServer, events.EventEmitter);
@@ -186,7 +197,39 @@ DeviceServer.prototype.onWrite = function(driver, device) {
 }
 
 
+/**
+ * Retourne la fréquence d'un device (en seconde)
+ * 
+ * @param deviceName @see DEVICE_CLASS
+ */
+DeviceServer.prototype.frequence = function(deviceName) {
+	var deviceClass = this.deviceClass(deviceName)
+	
+	if (!deviceClass) {
+		return DEFAUT_FREQUENCE
+	}
+	
+	if (this.credentials.frequences) {
+		if (this.credentials.frequences[deviceClass]) {
+			return this.credentials.frequences[deviceClass]
+		}
+	}
+	
+	return DEFAUT_FREQUENCE
+}
+
+
+/**
+ * Retourne l'implémentation smarthome d'un device
+ * 
+ * @param deviceName @see DEVICE_CLASS
+ */
+DeviceServer.prototype.deviceClass = function(deviceName) {
+	return DEVICE_CLASS[deviceName]
+}
+
+
 module.exports.DeviceServer = DeviceServer;
-module.exports.newInstance = function() {
-	return new DeviceServer();
+module.exports.newInstance = function(credentials) {
+	return new DeviceServer(credentials);
 };

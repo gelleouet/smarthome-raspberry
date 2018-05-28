@@ -69,7 +69,7 @@ ZWave.prototype.init = function() {
 	var device = this
 	
 	if (!device.credentials || !device.credentials.zwavePort) {
-		LOG.error(device, "ZWave init cancel : port not defined !")
+		LOG.error(device, "Init cancel : port not defined !")
 		return
 	}
 	

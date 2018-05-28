@@ -50,8 +50,15 @@ Log.prototype.error = function(object, message, data) {
  */
 Log.prototype.build = function(object, message, type) {
 	var buffer = "[" + type + " ";
-	buffer += new Date().toISOString() + "] ";
+	var strDate = new Date().toLocaleString()
+	var gmtIndex = strDate.indexOf("GMT")
+	
+	if (gmtIndex != -1) {
+		strDate = strDate.slice(0, gmtIndex-1)
+	}
+	buffer += strDate + "] ";
 	buffer += object.constructor.name + " - ";
+	
 	return buffer + message;
 };
 
