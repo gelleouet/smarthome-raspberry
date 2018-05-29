@@ -33,6 +33,7 @@ var Websocket = function Websocket() {
 	this.lastSendMessage = new Date();
 	this.lastPing = new Date();
 	this.pongTimeout = null
+	this.connected = false
 	
 	this.onMessage = null;
 	this.onConnected = null;
@@ -67,25 +68,28 @@ Websocket.prototype.listen = function() {
 	websocket.emit('subscribe');
 	
 	setInterval(function() {
-		if (!websocket.ws || websocket.ws.readyState == WsWebSocket.CLOSED || websocket.ws.readyState == WsWebSocket.CLOSING) {
+		if (!websocket.connected) {
 			if (!websocket.subscribing) {
 				websocket.emit('subscribe');
 			}
 		} else {
 			// le websocket est connecté mais si pas d'activité, la connexion peut être perdue
 			// envoi d'un message fictif ping
-			var now = new Date();
-			
-			if ((now.getTime() - websocket.lastPing.getTime()) > PING_WEBSOCKET_TIMER) {
-				websocket.sendMessage({header: 'ping'});
-				websocket.lastPing = now
+			// on ne lance pas le ping si il y a un pong en attente
+			if (!websocket.pongTimeout) {
+				var now = new Date();
 				
-				// creation d'un timeout pour attendre le pong
-				// et fermer la connexion si pas de reponse
-				websocket.pongTimeout = setTimeout(function() {
-					LOG.error(websocket, "Ping no receive pong !")
-					websocket.close()
-				}, HTTP_TIMEOUT)
+				if ((now.getTime() - websocket.lastPing.getTime()) > PING_WEBSOCKET_TIMER) {
+					websocket.sendMessage({header: 'ping'});
+					websocket.lastPing = now
+					
+					// creation d'un timeout pour attendre le pong
+					// et fermer la connexion si pas de reponse
+					websocket.pongTimeout = setTimeout(function() {
+						LOG.error(websocket, "Ping no receive pong !")
+						websocket.close()
+					}, HTTP_TIMEOUT)
+				}
 			}
 		}
 	}, VERIF_WEBSOCKET_TIMER);
@@ -194,8 +198,9 @@ Websocket.prototype.credential = function() {
  */
 Websocket.prototype.close = function() {
 	LOG.info(this, 'Closing channel');
-	this.subscribing = false;
 	this.lastPing = new Date()
+	this.subscribing = false;
+	this.connected = false
 	
 	if (this.pongTimeout) {
 		clearTimeout(this.pongTimeout)
@@ -276,6 +281,7 @@ Websocket.prototype.websocket = function() {
 		this.ws.on('open', function() {
 			LOG.info(websocket, 'Channel connected !');
 			websocket.subscribing = false;
+			websocket.connected = true;
 			
 			if (websocket.onConnected) {
 				websocket.onConnected();
