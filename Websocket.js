@@ -12,10 +12,9 @@ require('ssl-root-cas/latest')
 	.inject();
 
 
-var VERIF_WEBSOCKET_TIMER = 10000; // 10 secondes
-// Doit être supérieur au timeout, sinon le pong n'a pas le temps de revenir avant le prochain ping
-var PING_WEBSOCKET_TIMER = 30000; // 30 secondes
-var HTTP_TIMEOUT = 5000; // 5 secondes
+var VERIF_WEBSOCKET_TIMER = 5000; // 5 secondes
+var PING_WEBSOCKET_TIMER = 60000; // 60 secondes
+var HTTP_TIMEOUT = 10000; // 10 secondes
 
 /**
  * Constructeur Websocket
@@ -30,7 +29,6 @@ var Websocket = function Websocket() {
 	this.agentModel = null;
 	this.subscribing = false;
 	this.credentials = null;
-	this.lastSendMessage = new Date();
 	this.lastPing = new Date();
 	this.pongTimeout = null
 	this.connected = false
@@ -204,8 +202,9 @@ Websocket.prototype.close = function() {
 	
 	if (this.pongTimeout) {
 		clearTimeout(this.pongTimeout)
-		this.pongTimeout = null
 	}
+	
+	this.pongTimeout = null
 	
 	if (this.ws) {
 		this.ws.close();
@@ -241,10 +240,6 @@ Websocket.prototype.sendMessage = function(message, onSendCallback) {
 		var jsonData = JSON.stringify(data);
 		
 		this.ws.send(jsonData, {compress: true}, function ack(error) {
-			if (!error) {
-				websocket.lastSendMessage = new Date();
-			}
-			
 			if (onSendCallback) {
 				onSendCallback(error, message);
 			}
@@ -282,6 +277,9 @@ Websocket.prototype.websocket = function() {
 			LOG.info(websocket, 'Channel connected !');
 			websocket.subscribing = false;
 			websocket.connected = true;
+			
+			// vérifie que le channel fonctionne
+			websocket.sendMessage({header: 'Hello'});
 			
 			if (websocket.onConnected) {
 				websocket.onConnected();
