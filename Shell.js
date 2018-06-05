@@ -7,6 +7,7 @@
  */
 var pty = require('pty');
 var Device = require("./Device").Device;
+var LOG = require("./Log").newInstance();
 
 
 /**
@@ -73,10 +74,12 @@ Shell.prototype.sendData = function(data) {
 Shell.prototype.connect = function() {
 	var shell = this
 	
+	LOG.info(shell, "New bash console");
+	
 	this.xterm = pty.spawn('bash', [], {
 	  name: 'xterm-color',
 	  cols: 80,
-	  rows: 30,
+	  rows: 80,
 	  cwd: process.env.HOME,
 	  env: process.env
 	})

@@ -6,7 +6,7 @@
  * @author gregory.elleouet@gmail.com
  */
 var util = require('util');
-var OpenZWave = require('openzwave-shared');
+var OpenZWave
 var Device = require("./Device").Device;
 var LOG = require("./Log").newInstance();
 
@@ -65,13 +65,21 @@ util.inherits(ZWave, Device);
  * @see Device.init
  */
 ZWave.prototype.init = function() {
-	LOG.info(this, "Init");
 	var device = this
 	
-	if (!device.credentials || !device.credentials.zwavePort) {
-		LOG.error(device, "Init cancel : port not defined !")
+	try {
+		OpenZWave = require('openzwave-shared');
+	} catch (ex) {
+		LOG.error(device, "Open ZWave driver not found !")
 		return
 	}
+	
+	if (!device.credentials || !device.credentials.zwavePort) {
+		LOG.error(device, "Cancel init : port not defined !")
+		return
+	}
+	
+	LOG.info(this, "Init");
 	
 	this.zwave = new OpenZWave({
         ConsoleOutput: false

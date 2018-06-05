@@ -1,7 +1,6 @@
 #!/bin/bash
 
-# Version Raspbian >= 3.6.18
-# Pour mettre à jour : apt-get upgrade && apt-get dist-upgrade
+# Version Raspbian Stretch (04-2018)
 
 
 # Dossier application user
@@ -9,13 +8,14 @@ cd /opt
 
 
 # Installation paquets Linux
-curl -sLS https://apt.adafruit.com/add | sudo bash
-apt-get install node
+apt-get install nodejs
+apt-get install npm
 apt-get install libudev-dev
 apt-get install build-essential
 apt-get install libssl-dev
 apt-get install monit
-apt-get install nginx
+# reste compatible avec l'ancienne commande
+ln -s /usr/bin/nodejs /usr/sbin/node
 
 
 # Installation OpenZWave
@@ -40,21 +40,20 @@ npm install ws
 npm install node-uuid
 npm install request
 npm install ssl-root-cas
-npm install serialport@1.4.9
+npm install serialport
 npm install pi-gpio
 npm install node-gyp
 npm install openzwave-shared
 npm install pty
+npm install lokijs
+npm install i2c-bus
 
 
 # Configuration Smarthome
 cd /opt/smarthome
-chmod +x smarthome
 chmod +x config.sh
 chmod +x upgrade.sh
 cp smarthome /etc/init.d/
-update-rc.d smarthome defaults
+chmod +x /etc/init.d/smarthome
 cp conf/monit/smarthome /etc/monit/conf.d/
 cp conf/logrotate/smarthome /etc/logrotate.d/
-cp conf/nginx/smarthome.conf /etc/nginx/sites-enabled/
-rm /etc/nginx/sites-enabled/default

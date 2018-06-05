@@ -8,10 +8,11 @@
  * @author gregory.elleouet@gmail.com
  */
 var util = require('util');
-var serialport = require("serialport");
+var SerialPort = require("serialport");
 var Device = require("./Device").Device;
 var LOG = require("./Log").newInstance();
 var DateUtils = require("./DateUtils").DateUtils;
+
 
 
 var TELEINFO_CLASS = "smarthome.automation.deviceType.TeleInformation"
@@ -38,6 +39,8 @@ var RFXCom = function RFXCom(server) {
 	this.onErrorWaitTime = 0
 	// contient la date de la dernière valeur d'une mac
 	this.lastDateValues = {}
+	this.data = []
+	this.requiredBytes = 0
 	
 	this.handlers = {
 		0x01: "statusMessageHandler",
@@ -78,6 +81,29 @@ var RFXCom = function RFXCom(server) {
 			device.init()
 		}, device.onErrorWaitTime)
 	})
+	
+	
+	device.on("data", function(data) {
+		var length = data[0] + 1
+        var packetType = data[1]
+		var handlerName = device.handlers[packetType]
+		
+
+        // Avoid calling a handler with the wrong length packet
+        if (data.length !== length) {
+            LOG.error(device, "Wrong packet length: " + data.length + " bytes, should be " + length)
+        } else {
+            if (handlerName) {
+                try {
+                    device[handlerName](data.slice(2), packetType)
+                } catch (ex) {
+                	LOG.error(device, "Packet type " + handlerName, ex)
+                }
+            } else {
+                LOG.error(device, "Unhandled packet type " + packetType)
+            }
+        }
+	})
 };
 
 util.inherits(RFXCom, Device);
@@ -104,14 +130,12 @@ RFXCom.prototype.init = function() {
 	if (!device.object) {
 		LOG.info(device, "Init on device port:", device.credentials.rfxcomPort);
 		
-		device.object = new serialport.SerialPort(device.credentials.rfxcomPort, {
+		device.object = new SerialPort(device.credentials.rfxcomPort, {
 			baudRate: 38400,
 			dataBits: 8,
 			parity: 'none',
-			stopBits: 1,
-			parser: device.parser()
+			stopBits: 1
 		})
-		
 		
 		// If the RFXTRX has just been connected, we must wait for at least 5s before any
         // attempt to communicate with it, or it will enter the flash bootloader.
@@ -125,33 +149,15 @@ RFXCom.prototype.init = function() {
         		device.onError(error)
         	} else {
         		device.connected = true
+        		
+        		device.object.on("data", function(buffer) {
+        			device.onSerialData(buffer)
+        		})
                 
         		device.object.on('close', function(error) {
                 	device.onError(error)
                 })
                 
-                device.object.on('data', function(data) {
-					var length = data[0] + 1
-		            var packetType = data[1]
-					var handlerName = device.handlers[packetType]
-					
-		
-			        // Avoid calling a handler with the wrong length packet
-			        if (data.length !== length) {
-			            LOG.error(device, "Wrong packet length: " + data.length + " bytes, should be " + length)
-			        } else {
-			            if (handlerName) {
-			                try {
-			                    device[handlerName](data.slice(2), packetType)
-			                } catch (ex) {
-			                	LOG.error(device, "Packet type " + handlerName, ex)
-			                }
-			            } else {
-			                LOG.error(device, "Unhandled packet type " + packetType)
-			            }
-			        }
-				})
-        		
         		setTimeout(function () {
                 	device.emit("ready")
                 }, device.initialiseWaitTime - 500);
@@ -271,7 +277,7 @@ RFXCom.prototype.nextMessageSequenceNumber = function() {
  * Fermeture connexion série
  */
 RFXCom.prototype.close = function() {
-	if (this.object && this.object.isOpen()) {
+	if (this.object && this.object.isOpen) {
 		try {
 			this.object.close()
 		} catch (ex) {
@@ -283,37 +289,6 @@ RFXCom.prototype.close = function() {
 	this.connected = false
 	this.receiving = false
 	this.initialising = false 
-}
-
-
-/**
- * Le parser pour la réception des trames
- * 
- */
-RFXCom.prototype.parser = function() {
-    var data = []
-    var requiredBytes = 0
-    var device = this
-    
-    return function(emitter, buffer) {
-        if (device.receiving) {
-            data.push.apply(data, buffer)
-            
-            while (data.length >= requiredBytes) {
-                if (requiredBytes > 0) {
-                    emitter.emit("data", data.slice(0, requiredBytes))
-                    data = data.slice(requiredBytes)
-                }
-                if (data.length > 0 && data[0] >= 4 && data[0] <= 36) {
-                    requiredBytes = data[0] + 1
-                } else {
-                    requiredBytes = 0
-                    data = []
-                    break
-                }
-            }
-        }
-    }
 }
 
 
@@ -661,6 +636,31 @@ RFXCom.prototype.dumpHex = function(buffer, prefix) {
  */
 RFXCom.prototype.checkFrequence = function(mac, now, frequence) {
 	return !this.lastDateValues[mac] || DateUtils.diffSecond(this.lastDateValues[mac], now) >= frequence
+}
+
+
+/**
+ * Le parser pour la réception des trames
+ * 
+ */
+RFXCom.prototype.onSerialData = function(buffer) {
+	if (this.receiving) {
+        this.data.push.apply(this.data, buffer)
+        
+        while (this.data.length >= this.requiredBytes) {
+            if (this.requiredBytes > 0) {
+            	this.emit("data", this.data.slice(0, this.requiredBytes))
+                this.data = this.data.slice(this.requiredBytes)
+            }
+            if (this.data.length > 0 && this.data[0] >= 4 && this.data[0] <= 36) {
+                this.requiredBytes = this.data[0] + 1
+            } else {
+                this.requiredBytes = 0
+                this.data = []
+                break
+            }
+        }
+    }
 }
 
 

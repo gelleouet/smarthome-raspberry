@@ -6,7 +6,8 @@
  * @author gregory.elleouet@gmail.com
  */
 var util = require('util');
-var serialport = require("serialport");
+var SerialPort = require("serialport");
+var ReadLineParser = require('serialport/node_modules/parser-readline')
 var Device = require("./Device").Device;
 var LOG = require("./Log").newInstance();
 
@@ -35,6 +36,7 @@ var TeleInfo = function TeleInfo(server, id) {
 	this.timerCreate = false;
 	this.id = id
 	this.lastTrace = null
+	this.parser = null
 };
 
 util.inherits(TeleInfo, Device);
@@ -55,14 +57,14 @@ TeleInfo.prototype.init = function() {
 	if (!this.object) {
 		LOG.info(device, "Init", [portPath, this.credentials[portPath]]);
 		
-		device.object = new serialport.SerialPort(this.credentials[portPath], {
-			baudrate: 1200,
+		device.object = new SerialPort(this.credentials[portPath], {
+			baudRate: 1200,
 			dataBits: 7,
 			parity: 'even',
-			stopBits: 1,
-			// Caractères séparateurs = fin de trame + début de trame
-			parser: serialport.parsers.readline(String.fromCharCode(13,3,2,10))
+			stopBits: 1
 		});
+		
+		device.parser = device.object.pipe(new ReadLineParser({ delimiter: String.fromCharCode(13,3,2,10) }))
 		
 		device.object.on('error', function(error) {
 			LOG.error(device, 'Connexion impossible', error);
@@ -74,7 +76,7 @@ TeleInfo.prototype.init = function() {
 				LOG.info(device, 'Serial port openning error', error);
 				device.object = null;
 			} else {
-				device.object.on('data', function(data) {
+				device.parser.on('data', function(data) {
 					device.onData(data);
 				});
 				device.object.on('close', function(error) {

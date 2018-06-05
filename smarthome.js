@@ -48,11 +48,17 @@ process.on('SIGTERM', exit);
  * @param message
  */
 function onDeviceMessage(message) {
-	websocket.sendMessage(message, function(error, message) {
-		// gère la retransmission de message si seulement
-		// erreur sur envoi websocket
-		if (error) {
-			offline.add(message)
+	// 1er essai par le websocket
+	websocket.sendMessage(message, function(error1, message) {
+		if (error1) {
+			// 2e essai par un simple POST
+			websocket.httpPostMessage(message, function(error2, message) {
+				// tout a planté, on enregistre le message 
+				// pour un futur envoi
+				if (error2) {
+					offline.add(message)
+				}
+			})
 		}
 	});
 }
@@ -106,9 +112,14 @@ function onWebsocketClosed() {
 function exit() {
 	console.log("-------------------------------------------------");
 	console.log("Smarthome.exit", new Date());
-	deviceServer.close();
-	websocket.close();
-	offline.close();
-	console.log("-------------------------------------------------");
+	if (deviceServer) {
+		deviceServer.close();
+	}
+	if (websocket) {
+		websocket.close();
+	}
+	if (offline) {
+		offline.close();
+	}
 	process.exit();
 }

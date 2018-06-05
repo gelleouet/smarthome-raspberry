@@ -1,0 +1,15 @@
+#!/bin/bash
+# configure l'accès au wifi depuis un fichier déposé
+# sur la parition /boot
+# cela permet d'éditer la config facilement depuis un éditeur texte
+# directement depuis la sdcard
+
+
+WIFI_BOOT_FILE="/boot/wifi.conf"
+
+
+if [ -e "$WIFI_BOOT_FILE" ]
+then
+	echo "Find wifi boot config"
+	cp "$WIFI_BOOT_FILE" /etc/wpa_supplicant/wpa_supplicant.conf  
+fi

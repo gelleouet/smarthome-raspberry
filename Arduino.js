@@ -36,12 +36,12 @@ Arduino.prototype.init = function() {
 	var device = this;
 	
 	if (!device.credentials || !device.credentials.arduinoPort)  {
-		LOG.error(device, "Arduino init cancel : port not defined !")
+		LOG.error(device, "Cancel init : port not defined !")
 		return
 	}
 	
 	if (!device.object) {
-		LOG.info(device, "Init (not connected)...");
+		LOG.info(device, "Init");
 		
 		try {
 			device.object = new serialport.SerialPort(device.credentials.arduinoPort, {

@@ -142,7 +142,7 @@ Websocket.prototype.subscribe = function() {
 			}
 			
 			// arrivé là y'a eu une erreur plus haut
-			LOG.error(websocket, 'Subscribe request error', error);
+			LOG.error(websocket, 'Subscribe request failed !');
 			websocket.subscribing = false;
 		};
 		
@@ -248,6 +248,49 @@ Websocket.prototype.sendMessage = function(message, onSendCallback) {
 		onSendCallback('Websocket not connected !', message);
 	}
 };
+
+
+/**
+ * Envoi d'un message non plus par le websocket
+ * mais par un simple post sur le serveur
+ * A utiliser en secours si le websocket est fermé
+ * 
+ * @param message
+ * @param onSendCallback
+ */
+Websocket.prototype.httpPostMessage = function(message, onSendCallback) {
+	if (this.credential()) {
+		var options = {
+			url: this.applicationHost + '/device/publicChangeValueFromAgent',
+			method: 'POST',
+			timeout: HTTP_TIMEOUT,
+			json: true,
+			body: {
+				username: this.username,
+				applicationKey: this.applicationKey,
+				mac: this.mac,
+				privateIp: this.address,
+				agentModel: this.agentModel,
+				data: message
+			}
+		};
+			
+		function subscribeCallBack(error, response, body) {
+			if (onSendCallback) {
+				if (response && response.statusCode == 200) {
+					onSendCallback(null, message);
+				} else {
+					onSendCallback("HTTP POST error", message);
+				}
+			}
+		};
+		
+		request(options, subscribeCallBack);
+	} else if (onSendCallback) {
+		onSendCallback('Required credential !', message);
+	}
+	
+}
 
 
 /**

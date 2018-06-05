@@ -20,7 +20,7 @@ export PATH=/sbin:/usr/sbin:/bin:/usr/bin:/usr/local/bin
 NODE_PATH=$NODE_PATH:/opt/node_modules
 DESC="SmartHome Raspberry Agent"
 NAME=smarthome
-DAEMON="/usr/local/bin/node"
+DAEMON="/usr/bin/nodejs"
 DAEMON_ARGS="/opt/smarthome/smarthome.js"
 PIDFILE=/var/run/$NAME.pid
 LOGFILE=/var/log/$NAME.log
@@ -39,7 +39,8 @@ SCRIPTNAME=/etc/init.d/$NAME
 # Define LSB log_* functions.
 # Depend on lsb-base (>= 3.2-14) to ensure that this file is present
 # and status_of_proc is working.
-. /lib/lsb/init-functions
+# Desactiver pour systemctl
+#. /lib/lsb/init-functions
 
 #
 # Function that upgrade smarthome program
@@ -55,8 +56,6 @@ do_upgrade()
 #
 do_start()
 {
-	do_upgrade
-	
 	# Return
 	#   0 if daemon has been started
 	#   1 if daemon was already running
@@ -105,7 +104,7 @@ do_reload() {
 	# restarting (for example, when it is sent a SIGHUP),
 	# then implement that here.
 	#
-	start-stop-daemon --stop --signal 1 --quiet --pidfile $PIDFILE --name $NAME
+	do_upgrade
 	return 0
 }
 
@@ -129,16 +128,16 @@ case "$1" in
   status)
 	status_of_proc "$DAEMON" "$NAME" && exit 0 || exit $?
 	;;
-  #reload|force-reload)
+  reload|force-reload)
 	#
 	# If do_reload() is not implemented then leave this commented out
 	# and leave 'force-reload' as an alias for 'restart'.
 	#
-	#log_daemon_msg "Reloading $DESC" "$NAME"
-	#do_reload
-	#log_end_msg $?
-	#;;
-  restart|force-reload)
+	log_daemon_msg "Reloading $DESC" "$NAME"
+	do_reload
+	log_end_msg $?
+	;;
+  restart)
 	#
 	# If the "reload" option is implemented then remove the
 	# 'force-reload' alias
