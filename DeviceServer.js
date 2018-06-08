@@ -34,6 +34,7 @@ var DeviceServer = function DeviceServer(credentials) {
 	this.drivers = []
 	this.credentials = credentials
 	this.shell = new Shell(this)
+	this.association = false
 	
 	this.drivers['teleinfo'] = new TeleInfo(this, 1);
 	this.drivers['teleinfo2'] = new TeleInfo(this, 2);
@@ -107,10 +108,16 @@ DeviceServer.prototype.sendMessage = function(message, onerror) {
 	}
 	
 	if (message.header == "startInclusion") {
+		LOG.info(this, "Starting association...")
+		this.association = true
+		
 		for (driverName in this.drivers) {
 			this.emit('inclusion', this.drivers[driverName]);
 		}
 	} else if (message.header == "startExclusion") {
+		LOG.info(this, "Stopping association...")
+		this.association = false
+		
 		for (driverName in this.drivers) {
 			this.emit('exclusion', this.drivers[driverName]);
 		}
@@ -171,7 +178,8 @@ DeviceServer.prototype.onValue = function(device, header) {
 				dateValue: now,
 				metavalues: device.metavalues,
 				metadatas: device.metadatas,
-				timezoneOffset: now.getTimezoneOffset()
+				timezoneOffset: now.getTimezoneOffset(),
+				association: this.association
 		}
 		
 		this.onMessage(message);

@@ -8,12 +8,15 @@ cd /opt
 
 
 # Installation paquets Linux
+apt-get install git
+apt-get install i2c-tools
 apt-get install nodejs
 apt-get install npm
 apt-get install libudev-dev
 apt-get install build-essential
 apt-get install libssl-dev
 apt-get install monit
+apt-get install kpartx
 # reste compatible avec l'ancienne commande
 ln -s /usr/bin/nodejs /usr/sbin/node
 

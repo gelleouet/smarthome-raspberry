@@ -1,0 +1,4 @@
+check network wlan with interface wlan0
+        start program = "/sbin/ifconfig wlan0 up"
+        stop program = "/sbin/ifconfig wlan0 down"
+        if failed link for 5 cycles then restart

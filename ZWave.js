@@ -239,8 +239,10 @@ ZWave.prototype.write = function(device) {
  * @see Device.startInclusion
  */
 ZWave.prototype.startInclusion = function() {
-	LOG.info(this, "Starting inclusion...");
-	this.zwave.addNode(false);
+	if (this.zwave) {
+		LOG.info(this, "Starting inclusion...");
+		this.zwave.addNode(false);
+	}
 };
 
 
@@ -248,8 +250,10 @@ ZWave.prototype.startInclusion = function() {
  * @see Device.startExclusion
  */
 ZWave.prototype.startExclusion = function() {
-	LOG.info(this, "Starting exclusion...");
-	this.zwave.removeNode();
+	if (this.zwave) {
+		LOG.info(this, "Starting exclusion...");
+		this.zwave.removeNode();
+	}
 };
 
 

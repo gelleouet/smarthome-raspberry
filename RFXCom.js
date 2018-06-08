@@ -526,8 +526,8 @@ RFXCom.prototype.temphumidityHandler = function(data, packetType) {
     	channel = 4
     }
 	
-	var macTemp = 'temp_channel_' + channel
-	var macHum = 'hum_channel_' + channel
+	var macTemp = 'temp_' + this.dumpHex(data.slice(2, 4), false).join("") + '_' + channel
+	var macHum = 'hum_' + this.dumpHex(data.slice(2, 4), false).join("") + '_' + channel
 	var temperature
 	
 	// BYTE temperaturehigh : 7;
