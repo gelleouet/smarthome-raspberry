@@ -116,7 +116,7 @@ TeleInfo.prototype.onData = function(data) {
 	}
 	
 	// trame complète, on envoi un message au serveur
-	if (values.adco && values.motdetat && values.iinst && values.hchp) {
+	if (values.adco && values.motdetat && (values.iinst || values.papp) && values.hchp) {
 		var adps = values.adps && (timer >= TELEINFO_ADPS_TIMER);
 		
 		// on n'envoit le message que tous les X intervalles ou au 1er init (starting)
@@ -129,7 +129,15 @@ TeleInfo.prototype.onData = function(data) {
 			// création d'un nouvel objet à envoyer pour être thread-safe
 			var teleinfo = new TeleInfo(this.server)
 			teleinfo.mac = values.adco.value;
-			teleinfo.value = values.iinst.value;
+			// C'est la valeur par défaut qui s'inscrit sur le device
+			if (values.iinst) {
+				teleinfo.value = values.iinst.value;
+			} else {
+				// si iinst n'est pas présent, on prend l'équivalent en VA
+				// il faut aussi le basculer en metavalue principale
+				teleinfo.value = values.papp.value;
+				values.papp.main = true
+			}
 			teleinfo.metavalues = values;
 			
 			// ajout d'une valeur par défaut du adps
