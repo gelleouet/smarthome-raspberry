@@ -35,6 +35,7 @@ var TeleInfo = function TeleInfo(server, id) {
 	this.timerCreate = false;
 	this.id = id
 	this.lastTrace = null
+	this.lastValues = null
 };
 
 util.inherits(TeleInfo, Device);
@@ -75,7 +76,11 @@ TeleInfo.prototype.init = function() {
 				device.object = null;
 			} else {
 				device.object.on('data', function(data) {
-					device.onData(data);
+					try {
+						device.onData(data);
+					} catch(ex) {
+						console.log(ex)
+					}
 				});
 				device.object.on('close', function(error) {
 					LOG.info(device, 'Serial port closed !', error);
@@ -113,9 +118,11 @@ TeleInfo.prototype.onData = function(data) {
 		this.parseData(lignes[i], values);
 	}
 	
+	this.completeTrame(values)
+	
 	// trame complète, on envoi un message au serveur
-	if (values.adco && values.motdetat && values.iinst && values.hchp) {
-		var adps = values.adps && (timer >= TELEINFO_ADPS_TIMER);
+	if (values.adco && values.motdetat && values.iinst && (values.base || values.hchc || values.hchp)) {
+		var adps = values.adps.value != "0" && (timer >= TELEINFO_ADPS_TIMER);
 		
 		// on n'envoit le message que tous les X intervalles ou au 1er init (starting)
 		// ou si adps signalé tous les Y intervalles
@@ -130,15 +137,6 @@ TeleInfo.prototype.onData = function(data) {
 			teleinfo.value = values.iinst.value;
 			teleinfo.metavalues = values;
 			
-			// ajout d'une valeur par défaut du adps
-			if (!teleinfo.metavalues.adps) {
-				teleinfo.metavalues.adps = {
-						value: "0",
-						label: "Avertissement Dépassement Puissance (A)",
-						trace: true
-				}
-			}
-			
 			// supprime les valeurs redondantes car pas mappé sur server
 			delete values.adco;
 			delete values.motdetat;
@@ -149,7 +147,8 @@ TeleInfo.prototype.onData = function(data) {
 				this.server.emit("value", teleinfo);
 				this.starting = false;
 				this.lastRead = now;
-				LOG.info(teleinfo, "TIC", [teleinfo.mac, teleinfo.value, teleinfo.adps, teleinfo.frequenceTeleinfo])
+				this.lastValues = values
+				LOG.info(teleinfo, "TIC", [teleinfo.mac, teleinfo.value, teleinfo.frequenceTeleinfo])
 			} else {
 				// on est en mode trace, envoi d'un autre type de valeur pour ne pas le confondre
 				// avec valeur normale et éviter tout le workflow qui va avec
@@ -235,6 +234,7 @@ TeleInfo.prototype.parseData = function(data, values) {
 		tokens[1] = tokens[1].replace(/\./g, "");
 		var metavalue = {
 			value: tokens[1],
+			originalName: tokens[0]
 		}
 		
 		if (tokens[0] == "ADCO") {
@@ -244,41 +244,117 @@ TeleInfo.prototype.parseData = function(data, values) {
 			metavalue.label = "Option tarifaire"
 		} else if (tokens[0] == "ISOUSC") {
 			values.isousc = metavalue
-			metavalue.label = "Intensité souscrite (A)"
+			metavalue.label = "Intensité souscrite"
+			metavalue.unite = "A"
 		} else if (tokens[0] == "HCHC") {
 			values.hchc = metavalue
-			metavalue.label = "Total heures creuses (Wh)"
+			metavalue.label = "Total heures creuses"
+			metavalue.unite = "Wh"
+			metavalue.trace = true
+		} else if (tokens[0] == "EJPHN") {
+			values.hchc = metavalue
+			metavalue.label = "Total heures normales"
+			metavalue.unite = "Wh"
+			metavalue.trace = true
+		} else if (tokens[0] == "EJPHPM") {
+			values.hchp = metavalue
+			metavalue.label = "Total heures pointe mobile"
+			metavalue.unite = "Wh"
 			metavalue.trace = true
 		} else if (tokens[0] == "HCHP") {
 			values.hchp = metavalue
-			metavalue.label = "Total heures pleines (Wh)"
+			metavalue.label = "Total heures pleines"
+			metavalue.unite = "Wh"
 			metavalue.trace = true
 		} else if (tokens[0] == "BASE") {
-			values.hchp = metavalue
-			metavalue.label = "Total base (Wh)"
+			values.base = metavalue
+			metavalue.label = "Total toutes heures"
+			metavalue.unite = "Wh"
 			metavalue.trace = true
 		} else if (tokens[0] == "PTEC") {
 			values.ptec = metavalue
 			metavalue.label = "Période tarifaire"
 		} else if (tokens[0] == "IINST") {
 			values.iinst = metavalue
-			metavalue.label = "Intensité instantanée (A)"
+			metavalue.label = "Intensité instantanée"
+			metavalue.unite = "A"
 			metavalue.main = true
 		} else if (tokens[0] == "IMAX") {
 			values.imax = metavalue
-			metavalue.label = "Intensité maximale (A)"
+			metavalue.label = "Intensité maximale"
+			metavalue.unite = "A"
 		} else if (tokens[0] == "PAPP") {
 			values.papp = metavalue
-			metavalue.label = "Puissance apparente (VA)"
+			metavalue.label = "Puissance apparente"
+			metavalue.unite = "VA"
 		} else if (tokens[0] == 'MOTDETAT') {
 			values.motdetat = true
 		} else if (tokens[0] == 'ADPS') {
 			values.adps = metavalue
-			metavalue.label = "Avertissement Dépassement Puissance (A)"
+			metavalue.label = "Avertissement Dépassement Puissance"
+			metavalue.unite = "A"
 			metavalue.trace = true
 		}
 	}
 };
+
+
+/**
+ * Complète la trame teleinfo en rajoutant les éléments calculés 
+ * et des éléments manquants
+ */
+TeleInfo.prototype.completeTrame = function(values) {
+	// ajout d'une trame ADPS si elle n'existe pas
+	// ajout d'une valeur par défaut du adps
+	if (!values.adps) {
+		values.adps = {
+			value: "0",
+			label: "Avertissement Dépassement Puissance",
+			unite: 'A',
+			trace: true
+		}
+	}
+	
+	// l'intensité instantanée n'est pas fournie mais la puissance apparente oui
+	if (!values.iinst && values.papp) {
+		values.iinst = {
+			value: Math.ceil(parseInt(values.papp.value) / 220) + "",
+			label: 'Intensité instantanée',
+			unite: 'A',
+			main: true
+		}
+	}
+	
+	// les index sur la période uniquement si un précédent relevé a déjà été fait
+	if (values.base) {
+		values.baseinst = {
+			value: (this.lastValues && this.lastValues.base) ? (parseInt(values.base.value) - parseInt(this.lastValues.base.value)) + "" : "0",
+			label: 'Période toutes heures',
+			unite: 'Wh',
+			trace: true
+		}
+	}
+	
+	if (values.hchc) {
+		values.hcinst = {
+			value: (this.lastValues && this.lastValues.hchc) ? (parseInt(values.hchc.value) - parseInt(this.lastValues.hchc.value)) + "" : "0",
+			label: values.hchc.originalName == 'EJPHN' ? 'Période heures normales' : 'Période heures creuses',
+			unite: 'Wh',
+			trace: true
+		}
+	}
+	
+	if (values.hchp) {
+		values.hpinst = {
+			value: (this.lastValues && this.lastValues.hchp) ? (parseInt(values.hchp.value) - parseInt(this.lastValues.hchp.value)) + "" : "0",
+			label: values.hchp.originalName == 'EJPHPM' ? 'Période heures pointe mobile' : 'Période heures pleines',
+			unite: 'Wh',
+			trace: true
+		}
+	}
+}
+
+
 
 /**
  * Calcule le checksum de la chaine de caractère
