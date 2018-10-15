@@ -39,6 +39,7 @@ var RFXCom = function RFXCom(server) {
 	this.onErrorWaitTime = 0
 	// contient la date de la dernière valeur d'une mac
 	this.lastDateValues = {}
+	this.lastValues = {}
 	this.data = []
 	this.requiredBytes = 0
 	
@@ -373,12 +374,18 @@ RFXCom.prototype.cartelectronicHandler = function(data, packetType) {
 						signal: {
 							label: 'Signal',
 							value: ((data[15] >> 4) & 0xF) + ""
+						},
+						conso: {
+							value: this.lastValues[mac1] ? (counter1 - parseInt(this.lastValues[mac1].value)) + "" : "0",
+		    				label: 'Période consommation',
+		    				trace: true
 						}
 					}
 				}
 				
 				this.server.emit("value", value)
 				LOG.info(this, "Cartelectronic Counter", [value.mac, value.value, frequenceCompteur])
+				this.lastValues[mac1] = value
 			}
 			
 			if (counter2) {
@@ -394,12 +401,18 @@ RFXCom.prototype.cartelectronicHandler = function(data, packetType) {
 						signal: {
 							label: 'Signal',
 							value: ((data[15] >> 4) & 0xF) + ""
+						},
+						conso: {
+							value: this.lastValues[mac2] ? (counter2 - parseInt(this.lastValues[mac2].value)) + "" : "0",
+		    				label: 'Période consommation',
+		    				trace: true
 						}
 					}
 				}
 				
 				this.server.emit("value", value)
 				LOG.info(this, "Cartelectronic Counter", [value.mac, value.value, frequenceCompteur])
+				this.lastValues[mac2] = value
 			}
 			
 			if (counter1 || counter2) {
@@ -461,6 +474,9 @@ RFXCom.prototype.cartelectronicHandler = function(data, packetType) {
 		}
         
         if (validPAPP && validTIC && this.checkFrequence(mac, now, frequenceTeleinfo)) {
+        	var valueIndex1 = ((data[8] << 24) + (data[9] << 16) + (data[10] << 8) + data[11])
+        	var valueIndex2 = ((data[12] << 24) + (data[13] << 16) + (data[14] << 8) + data[15])
+        	
         	var value = {
         		mac: parseInt(mac, 16) + "",
         		implClass: this.server.deviceClass('teleinfo'),
@@ -474,19 +490,10 @@ RFXCom.prototype.cartelectronicHandler = function(data, packetType) {
 						label: 'Signal',
 						value: ((data[19] >> 4) & 0xF) + ""
 					},
-					hchc: {
-						value: ((data[8] << 24) + (data[9] << 16) + (data[10] << 8) + data[11]) + "",
-						label: "Total heures creuses (Wh)",
-						trace: true
-					},
-					hchp: {
-						value: ((data[12] << 24) + (data[13] << 16) + (data[14] << 8) + data[15]) + "",
-						label: "Total heures pleines (Wh)",
-						trace: true
-					},
 					papp: {
 						value: papp + "",
-						label: "Puissance apparente (VA)"
+						label: "Puissance apparente",
+						unite: "VA"
 					},
 					opttarif: {
 						value: opttarif,
@@ -498,10 +505,77 @@ RFXCom.prototype.cartelectronicHandler = function(data, packetType) {
 					}
 				}
         	}
+
+        	// ajout des index totaux et période en fonction de la période tarifaire
+        	if (opttarif == "HC") {
+        		value.metavalues.hchc = {
+        			value: valueIndex1 + "",
+					label: "Total heures creuses",
+					unite: "Wh",
+					trace: true
+				}
+        		value.metavalues.hchp = {
+        			value: valueIndex2 + "",
+					label: "Total heures pleines",
+					unite: "Wh",
+					trace: true
+				}
+        		value.metavalues.hcinst = {
+    				value: (this.lastValues[mac] && this.lastValues[mac].metavalues.hchc) ? (valueIndex1 - parseInt(this.lastValues[mac].metavalues.hchc.value)) + "" : "0",
+    				label: 'Période heures creuses',
+    				unite: 'Wh',
+    				trace: true
+    			}
+        		value.metavalues.hpinst = {
+    				value: (this.lastValues[mac] && this.lastValues[mac].metavalues.hchp) ? (valueIndex2 - parseInt(this.lastValues[mac].metavalues.hchp.value)) + "" : "0",
+					label: 'Période heures pleines',
+					unite: 'Wh',
+					trace: true
+        		}
+        	} else if (opttarif == "EJP") {
+        		value.metavalues.hchc = {
+        			value: valueIndex2 + "",
+					label: "Total heures normales",
+					unite: "Wh",
+					trace: true
+				}
+        		value.metavalues.hchp = {
+        			value: valueIndex1 + "",
+					label: "Total heures pointe mobile",
+					unite: "Wh",
+					trace: true
+				}
+        		value.metavalues.hcinst = {
+    				value: (this.lastValues[mac] && this.lastValues[mac].metavalues.hchc) ? (valueIndex2 - parseInt(this.lastValues[mac].metavalues.hchc.value)) + "" : "0",
+    				label: 'Période heures creuses',
+    				unite: 'Wh',
+    				trace: true
+    			}
+        		value.metavalues.hpinst = {
+    				value: (this.lastValues[mac] && this.lastValues[mac].metavalues.hchp) ? (valueIndex1 - parseInt(this.lastValues[mac].metavalues.hchp.value)) + "" : "0",
+					label: 'Période heures pleines',
+					unite: 'Wh',
+					trace: true
+        		}
+            } else {
+        		value.metavalues.base = {
+        			value: valueIndex1 + "",
+					label: "Total toutes heures",
+					unite: "Wh",
+					trace: true
+				}
+        		value.metavalues.baseinst = {
+    				value: (this.lastValues[mac] && this.lastValues[mac].metavalues.base) ? (valueIndex1 - parseInt(this.lastValues[mac].metavalues.base.value)) + "" : "0",
+    				label: 'Période toutes heures',
+    				unite: 'Wh',
+    				trace: true
+    			}
+        	}
         	
         	this.server.emit("value", value)
 			LOG.info(this, "Cartelectronic TIC", [value.mac, value.value, frequenceTeleinfo])
 			this.lastDateValues[mac] = now
+			this.lastValues[mac] = value
         }
 	}
 }

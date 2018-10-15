@@ -56,7 +56,7 @@ OneWire.prototype.read = function() {
 	
  	fs.readFile(ONEWIRE_PATH + device.mac + '/w1_slave', function(error, buffer) {
  		if (error) {
- 			LOG.error(device, "Read 1-Wire device " + device.mac, error);
+ 			
  		} else if (buffer) {
 	 		/* Exemple de fichier pour la famille des températures
 	 		 * 37 00 4b 46 ff ff 07 10 1e : crc=1e YES
