@@ -42,7 +42,10 @@ var RFXCom = function RFXCom(server) {
 	
 	this.handlers = {
 		0x01: "statusMessageHandler",
+		0x50: "tempHandler",
+		0x51: "humidityHandler",
 		0x52: "temphumidityHandler",
+		0x56: "windHandler",
 		0x60: "cartelectronicHandler"
 	}
 	
@@ -602,6 +605,111 @@ RFXCom.prototype.cartelectronicHandler = function(data, packetType) {
 			this.lastDateValues[mac] = now
 			this.lastValues[mac] = value
         }
+	}
+}
+
+
+/**
+ * Called by the data event handler when data arrives from temperature
+ * sensing devices (packet type 0x50).
+*/
+RFXCom.prototype.tempHandler = function(data, packetType) {
+	var frequenceTemp = this.server.frequence('temperature')
+	var now = new Date()
+	var mac = "temp_" + this.dumpHex(data.slice(2, 4), false).join("")
+	var signbit = data[4] & 0x80
+	var temperature = ((data[4] & 0x7f) * 256 + data[5]) / 10 * (signbit ? -1 : 1)
+	
+	if (this.checkFrequence(mac, now, frequenceTemp)) {
+		var tempValue = {
+			implClass: this.server.deviceClass('temperature'),
+			mac: mac,
+			value: temperature + "",
+			metavalues: {
+				battery: {
+					label: 'Batterie',
+					value: (data[6] & 0x0f) + ""
+				},
+				signal: {
+					label: 'Signal',
+					value: ((data[6] >> 4) & 0xf) + ""
+				}
+			}
+		}
+		
+		this.server.emit("value", tempValue)
+		LOG.info(this, "Temperature", [tempValue.mac, tempValue.value, frequenceTemp])
+		this.lastDateValues[mac] = now
+	}
+}
+
+
+/**
+ * Called by the data event handler when data arrives from humidity sensing
+ * devices (packet type 0x51).
+ */
+RFXCom.prototype.humidityHandler = function(data, packetType) {
+	var frequenceTemp = this.server.frequence('humidite')
+	var now = new Date()
+	var mac = "humid_" + this.dumpHex(data.slice(2, 4), false).join("")
+	
+	if (this.checkFrequence(mac, now, frequenceTemp)) {
+		var tempValue = {
+			implClass: this.server.deviceClass('humidite'),
+			mac: mac,
+			value: data[4] + "",
+			metavalues: {
+				battery: {
+					label: 'Batterie',
+					value: (data[6] & 0x0f) + ""
+				},
+				signal: {
+					label: 'Signal',
+					value: ((data[6] >> 4) & 0xf) + ""
+				}
+			}
+		}
+		
+		this.server.emit("value", tempValue)
+		LOG.info(this, "Humidite", [tempValue.mac, tempValue.value, frequenceTemp])
+		this.lastDateValues[mac] = now
+	}
+}
+
+
+/**
+ * Called by the data event handler when data arrives from wind speed & direction
+ * sensors (packet type 0x56).
+ */
+RFXCom.prototype.windHandler = function(data, packetType) {
+	var frequenceTemp = this.server.frequence('anemometre')
+	var now = new Date()
+	var mac = "wind_" + this.dumpHex(data.slice(2, 4), false).join("")
+	
+	if (this.checkFrequence(mac, now, frequenceTemp)) {
+		var tempValue = {
+			implClass: this.server.deviceClass('anemometre'),
+			mac: mac,
+			value: ((data[8]*256 + data[9])/10) + "",
+			metavalues: {
+				battery: {
+					label: 'Batterie',
+					value: (data[14] & 0x0f) + ""
+				},
+				signal: {
+					label: 'Signal',
+					value: ((data[14] >> 4) & 0xf) + ""
+				},
+				direction: {
+					label: 'Direction',
+					value: (data[4]*256 + data[5]) + ""
+				}
+			}
+		}
+		
+		this.server.emit("value", tempValue)
+		LOG.info(this, "Anemometre", [tempValue.mac, tempValue.value, frequenceTemp])
+		this.lastDateValues[mac] = now
 	}
 }
 

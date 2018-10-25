@@ -22,7 +22,8 @@ var DEVICE_CLASS = {
 	humidite: "smarthome.automation.deviceType.Humidite",
 	teleinfo: "smarthome.automation.deviceType.TeleInformation",
 	compteur: "smarthome.automation.deviceType.Compteur",
-	capteur: "smarthome.automation.deviceType.Capteur"
+	capteur: "smarthome.automation.deviceType.Capteur",
+	anemometre: "smarthome.automation.deviceType.Anemometre"
 }
 
 
