@@ -690,7 +690,7 @@ RFXCom.prototype.windHandler = function(data, packetType) {
 		var tempValue = {
 			implClass: this.server.deviceClass('anemometre'),
 			mac: mac,
-			value: ((data[8]*256 + data[9])/10) + "",
+			value: ((data[8]*256 + data[9])/10 * 3.6) + "", // m/s => en km/h (ie * 3.6)
 			metavalues: {
 				battery: {
 					label: 'Batterie',
