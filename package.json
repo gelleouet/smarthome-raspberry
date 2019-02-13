@@ -1,0 +1,32 @@
+{
+	"author": "Gregory Elleouet <gregory.elleouet@gmail.com>",
+	"name": "bemyhomesmart",
+	"description": "Agent Node.JS pour l'application BeMyHomeSmart",
+	"homepage": "https://www.jdevops.com/smarthome/",
+	"version": "1.0.1",
+	"main": "smarthome.js",
+	"license": "GPLv3",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/gelleouet/smarthome-raspberry"
+	},
+	"bugs": {
+		"url": "https://github.com/gelleouet/smarthome-raspberry/issues"
+	},
+	"scripts": {
+		"test": "mocha"
+	},
+	"dependencies": {
+		"i2c-bus": "*",
+		"pi-gpio": "*",
+		"ws": "*",
+		"node-uuid": "*",
+		"request": "*",
+		"ssl-root-cas": "*",
+		"serialport": "~6.2.0",
+		"pty": "*",
+		"lokijs": "*",
+		"mocha": "*",
+		"chai": "*"
+	}
+}

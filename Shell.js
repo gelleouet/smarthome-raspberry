@@ -5,9 +5,9 @@
  * 
  * @author gregory.elleouet@gmail.com
  */
-var pty = require('pty');
 var Device = require("./Device").Device;
 var LOG = require("./Log").newInstance();
+var pty = null
 
 
 /**
@@ -17,6 +17,18 @@ var Shell = function Shell(server) {
 	this.server = server
 	this.xterm = null
 };
+
+
+/**
+ * Init du shell
+ */
+Shell.prototype.init = function() {
+	try {
+		pty = require('pty')
+	} catch (ex) {
+		LOG.error(this, "Module pty not found !")
+	}
+}
 
 
 /**

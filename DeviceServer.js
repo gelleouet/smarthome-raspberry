@@ -12,6 +12,7 @@ var Arduino = require("./Arduino").Arduino;
 var RFXCom = require("./RFXCom").RFXCom;
 var Shell = require("./Shell").Shell;
 var I2C = require("./I2C").I2C;
+var GestionnaireEnergie = require("./GestionnaireEnergie").GestionnaireEnergie;
 var LOG = require("./Log").newInstance();
 
 
@@ -22,7 +23,9 @@ var DEVICE_CLASS = {
 	humidite: "smarthome.automation.deviceType.Humidite",
 	teleinfo: "smarthome.automation.deviceType.TeleInformation",
 	compteur: "smarthome.automation.deviceType.Compteur",
-	capteur: "smarthome.automation.deviceType.Capteur"
+	capteur: "smarthome.automation.deviceType.Capteur",
+	anemometre: "smarthome.automation.deviceType.Anemometre",
+	gestionnaireEnergie: "smarthome.automation.deviceType.GestionnaireEnergie"
 }
 
 
@@ -36,14 +39,16 @@ var DeviceServer = function DeviceServer(credentials) {
 	this.shell = new Shell(this)
 	this.association = false
 	
-	this.drivers['teleinfo'] = new TeleInfo(this, 1);
-	this.drivers['teleinfo2'] = new TeleInfo(this, 2);
+	this.drivers['teleinfo'] = new TeleInfo(this, 1)
+	this.drivers['teleinfo2'] = new TeleInfo(this, 2)
 	this.drivers['onewire'] = new OneWire(this);
 	this.drivers['zwave'] = new ZWave(this);
 	//this.drivers['gpio'] = new Gpio(this);
 	this.drivers['arduino'] = new Arduino(this);
 	this.drivers['rfxcom'] = new RFXCom(this);
 	this.drivers['i2c'] = new I2C(this);
+	this.drivers['gestionnaireEnergie'] = new GestionnaireEnergie(this,
+			this.drivers['teleinfo']);
 };
 
 util.inherits(DeviceServer, events.EventEmitter);
@@ -57,6 +62,8 @@ util.inherits(DeviceServer, events.EventEmitter);
  */
 DeviceServer.prototype.listen = function() {
 	var deviceServer = this;	
+	
+	this.shell.init()
 	
 	deviceServer.on('value', function(device, header) {
 		deviceServer.onValue(device, header);
@@ -92,7 +99,7 @@ DeviceServer.prototype.listen = function() {
 		driver.credentials = this.credentials
 		this.emit('init', driver);
 	}
-
+	
 	LOG.info(this, 'Start listening...');
 }
 
@@ -127,11 +134,7 @@ DeviceServer.prototype.sendMessage = function(message, onerror) {
 					message.metadataName, message.metadataValue);
 		}
 	} else if (message.header == "invokeAction" && message.device) {
-		for (driverName in this.drivers) {
-			if (this.drivers[driverName].canWrite(message.device)) {
-				this.emit('write', this.drivers[driverName], message.device);
-			}
-		}
+		this.emitWrite(message.device)
 	} else if (message.header == "resetConfig") {
 		for (driverName in this.drivers) {
 			this.emit('resetConfig', this.drivers[driverName]);
@@ -146,6 +149,20 @@ DeviceServer.prototype.sendMessage = function(message, onerror) {
 		}
 	} else {
 		LOG.error(this, "Header not recognized !", message.header);
+	}
+}
+
+
+/**
+ * Méthode raccourcie utilisée en interne par les drivers pour communiquer plus facilement entre eux
+ * 
+ * Idem sendMessage avec un header = "invokeAction"
+ */
+DeviceServer.prototype.emitWrite = function(device) {
+	for (driverName in this.drivers) {
+		if (this.drivers[driverName].canWrite(device)) {
+			this.emit('write', this.drivers[driverName], device);
+		}
 	}
 }
 

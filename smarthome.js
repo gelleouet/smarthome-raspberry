@@ -121,5 +121,8 @@ function exit() {
 	if (offline) {
 		offline.close();
 	}
+	if (config) {
+		config.save();
+	}
 	process.exit();
 }

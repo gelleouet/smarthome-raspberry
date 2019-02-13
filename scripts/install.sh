@@ -43,13 +43,16 @@ npm install ws
 npm install node-uuid
 npm install request
 npm install ssl-root-cas
-npm install serialport
+npm install serialport@6.2.0
 npm install pi-gpio
 npm install node-gyp
 npm install openzwave-shared
 npm install pty
 npm install lokijs
 npm install i2c-bus
+npm install mocha
+npm install chai
+
 
 
 # Configuration Smarthome

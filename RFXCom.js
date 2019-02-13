@@ -45,7 +45,10 @@ var RFXCom = function RFXCom(server) {
 	
 	this.handlers = {
 		0x01: "statusMessageHandler",
+		0x50: "tempHandler",
+		0x51: "humidityHandler",
 		0x52: "temphumidityHandler",
+		0x56: "windHandler",
 		0x60: "cartelectronicHandler"
 	}
 	
@@ -349,6 +352,7 @@ RFXCom.prototype.resetConfig = function() {
 RFXCom.prototype.cartelectronicHandler = function(data, packetType) {
 	var subtype = data[0]
 	var now = new Date()
+	var results = {}
 	
 	
 	// les compteurs impulsion
@@ -386,6 +390,7 @@ RFXCom.prototype.cartelectronicHandler = function(data, packetType) {
 				this.server.emit("value", value)
 				LOG.info(this, "Cartelectronic Counter", [value.mac, value.value, frequenceCompteur])
 				this.lastValues[mac1] = value
+				results[mac1] = value
 			}
 			
 			if (counter2) {
@@ -413,6 +418,7 @@ RFXCom.prototype.cartelectronicHandler = function(data, packetType) {
 				this.server.emit("value", value)
 				LOG.info(this, "Cartelectronic Counter", [value.mac, value.value, frequenceCompteur])
 				this.lastValues[mac2] = value
+				results[mac2] = value
 			}
 			
 			if (counter1 || counter2) {
@@ -441,7 +447,7 @@ RFXCom.prototype.cartelectronicHandler = function(data, packetType) {
 			case 1: opttarif = "BASE"; break;
 			case 2: opttarif = "HC"; break;
 			case 3: opttarif = "EJP"; break;
-			case 4: opttarif = "TEMPO"; break;
+			//case 4: opttarif = "TEMPO"; break;
 		}
 		
 		// Les périodes tarifaires (4 bits de poids faible)
@@ -473,9 +479,10 @@ RFXCom.prototype.cartelectronicHandler = function(data, packetType) {
 			case 11: ptec = "HPJR"; break;
 		}
         
-        if (validPAPP && validTIC && this.checkFrequence(mac, now, frequenceTeleinfo)) {
+        if (validPAPP && validTIC && opttarif != "NONE" && this.checkFrequence(mac, now, frequenceTeleinfo)) {
         	var valueIndex1 = ((data[8] << 24) + (data[9] << 16) + (data[10] << 8) + data[11])
         	var valueIndex2 = ((data[12] << 24) + (data[13] << 16) + (data[14] << 8) + data[15])
+        	
         	
         	var value = {
         		mac: parseInt(mac, 16) + "",
@@ -505,9 +512,12 @@ RFXCom.prototype.cartelectronicHandler = function(data, packetType) {
 					}
 				}
         	}
-
+        	
         	// ajout des index totaux et période en fonction de la période tarifaire
         	if (opttarif == "HC") {
+        		this.checkLastIndex(mac, 'hchc', valueIndex1)
+        		this.checkLastIndex(mac, 'hchp', valueIndex2)
+        		
         		value.metavalues.hchc = {
         			value: valueIndex1 + "",
 					label: "Total heures creuses",
@@ -521,18 +531,21 @@ RFXCom.prototype.cartelectronicHandler = function(data, packetType) {
 					trace: true
 				}
         		value.metavalues.hcinst = {
-    				value: (this.lastValues[mac] && this.lastValues[mac].metavalues.hchc) ? (valueIndex1 - parseInt(this.lastValues[mac].metavalues.hchc.value)) + "" : "0",
+    				value: this.calculConsoFromLastValue(mac, 'hchc', valueIndex1, now, frequenceTeleinfo) + "",
     				label: 'Période heures creuses',
     				unite: 'Wh',
     				trace: true
     			}
         		value.metavalues.hpinst = {
-    				value: (this.lastValues[mac] && this.lastValues[mac].metavalues.hchp) ? (valueIndex2 - parseInt(this.lastValues[mac].metavalues.hchp.value)) + "" : "0",
+    				value: this.calculConsoFromLastValue(mac, 'hchp', valueIndex2, now, frequenceTeleinfo) + "", 
 					label: 'Période heures pleines',
 					unite: 'Wh',
 					trace: true
         		}
         	} else if (opttarif == "EJP") {
+        		this.checkLastIndex(mac, 'hchc', valueIndex2)
+        		this.checkLastIndex(mac, 'hchp', valueIndex1)
+        		
         		value.metavalues.hchc = {
         			value: valueIndex2 + "",
 					label: "Total heures normales",
@@ -546,18 +559,20 @@ RFXCom.prototype.cartelectronicHandler = function(data, packetType) {
 					trace: true
 				}
         		value.metavalues.hcinst = {
-    				value: (this.lastValues[mac] && this.lastValues[mac].metavalues.hchc) ? (valueIndex2 - parseInt(this.lastValues[mac].metavalues.hchc.value)) + "" : "0",
-    				label: 'Période heures creuses',
+    				value: this.calculConsoFromLastValue(mac, 'hchc', valueIndex2, now, frequenceTeleinfo) + "",
+    				label: 'Période heures normales',
     				unite: 'Wh',
     				trace: true
     			}
         		value.metavalues.hpinst = {
-    				value: (this.lastValues[mac] && this.lastValues[mac].metavalues.hchp) ? (valueIndex1 - parseInt(this.lastValues[mac].metavalues.hchp.value)) + "" : "0",
-					label: 'Période heures pleines',
+    				value: this.calculConsoFromLastValue(mac, 'hchp', valueIndex1, now, frequenceTeleinfo) + "",
+					label: 'Période heures pointe mobile',
 					unite: 'Wh',
 					trace: true
         		}
             } else {
+            	this.checkLastIndex(mac, 'base', valueIndex1)
+            	
         		value.metavalues.base = {
         			value: valueIndex1 + "",
 					label: "Total toutes heures",
@@ -565,7 +580,7 @@ RFXCom.prototype.cartelectronicHandler = function(data, packetType) {
 					trace: true
 				}
         		value.metavalues.baseinst = {
-    				value: (this.lastValues[mac] && this.lastValues[mac].metavalues.base) ? (valueIndex1 - parseInt(this.lastValues[mac].metavalues.base.value)) + "" : "0",
+    				value: this.calculConsoFromLastValue(mac, 'base', valueIndex1, now, frequenceTeleinfo) + "",
     				label: 'Période toutes heures',
     				unite: 'Wh',
     				trace: true
@@ -576,7 +591,169 @@ RFXCom.prototype.cartelectronicHandler = function(data, packetType) {
 			LOG.info(this, "Cartelectronic TIC", [value.mac, value.value, frequenceTeleinfo])
 			this.lastDateValues[mac] = now
 			this.lastValues[mac] = value
+			results[mac] = value
         }
+	}
+	
+	return results
+}
+
+
+/**
+ * Vérifie si l'index précédent est conforme par rapport à la nouvelle valeur
+ * ou inversement
+ * Test aussi de cohérence de valeur si la valeur précédente est inférieure à la valeur actuelle.
+ * Logiquement, on est branché sur des compteurs, donc ils ne peuvent pas avancer à reculons....
+ * 
+ * @param mac mac objet
+ * @param metaName nom de la meta contenant l'index
+ * @param value nouvelle valeur
+ * 
+ * @throw error si pas conforme
+ */
+RFXCom.prototype.checkLastIndex = function(mac, metaName, value) {
+	if (value == 0) {
+		throw new Error("index cannot be null !")
+	}
+	
+	if (this.lastValues[mac] && this.lastValues[mac].metavalues[metaName]) {
+		var lastValue = parseInt(this.lastValues[mac].metavalues[metaName].value)
+		
+		if (value < lastValue) {
+			throw new Error("current index cannot < last index ! (" + value + " < " + lastValue + ")")
+		}
+	}
+}
+
+
+/**
+ * Calcul d'une conso intermédiaire par rapport à la dernière valeur enregistrée
+ * Si la valeur précédente est trop ancienne (delta > 3 x frequence), la conso est annulée
+ * car sinon cela fait des graphes un peu bizarre
+ * 
+ * @param mac de l'objet connecté
+ * @param metaName metavalue dans laquelle est stockée l'ancienne valeur
+ * @param value nouvelle valeur
+ * @param now date du test
+ * 
+ */
+RFXCom.prototype.calculConsoFromLastValue = function(mac, metaName, value, now, frequence) {
+	// si aucune valeur précédente, conso 0
+	if (!this.lastValues[mac] || !this.lastValues[mac].metavalues[metaName]) {
+		return 0
+	}
+	
+	// si la valeur précédente est trop vieille, on ne fait pas le calcul car ce n'est pas représentatif
+	// de la réalité
+	if (this.lastDateValues[mac] && DateUtils.diffSecond(this.lastDateValues[mac], now) >= (3*frequence)) {
+		return 0
+	}
+	
+	return value - parseInt(this.lastValues[mac].metavalues[metaName].value)
+}
+
+
+/**
+ * Called by the data event handler when data arrives from temperature
+ * sensing devices (packet type 0x50).
+*/
+RFXCom.prototype.tempHandler = function(data, packetType) {
+	var frequenceTemp = this.server.frequence('temperature')
+	var now = new Date()
+	var mac = "temp_" + this.dumpHex(data.slice(2, 4), false).join("")
+	var signbit = data[4] & 0x80
+	var temperature = ((data[4] & 0x7f) * 256 + data[5]) / 10 * (signbit ? -1 : 1)
+	
+	if (this.checkFrequence(mac, now, frequenceTemp)) {
+		var tempValue = {
+			implClass: this.server.deviceClass('temperature'),
+			mac: mac,
+			value: temperature + "",
+			metavalues: {
+				battery: {
+					label: 'Batterie',
+					value: (data[6] & 0x0f) + ""
+				},
+				signal: {
+					label: 'Signal',
+					value: ((data[6] >> 4) & 0xf) + ""
+				}
+			}
+		}
+		
+		this.server.emit("value", tempValue)
+		LOG.info(this, "Temperature", [tempValue.mac, tempValue.value, frequenceTemp])
+		this.lastDateValues[mac] = now
+	}
+}
+
+
+/**
+ * Called by the data event handler when data arrives from humidity sensing
+ * devices (packet type 0x51).
+ */
+RFXCom.prototype.humidityHandler = function(data, packetType) {
+	var frequenceTemp = this.server.frequence('humidite')
+	var now = new Date()
+	var mac = "humid_" + this.dumpHex(data.slice(2, 4), false).join("")
+	
+	if (this.checkFrequence(mac, now, frequenceTemp)) {
+		var tempValue = {
+			implClass: this.server.deviceClass('humidite'),
+			mac: mac,
+			value: data[4] + "",
+			metavalues: {
+				battery: {
+					label: 'Batterie',
+					value: (data[6] & 0x0f) + ""
+				},
+				signal: {
+					label: 'Signal',
+					value: ((data[6] >> 4) & 0xf) + ""
+				}
+			}
+		}
+		
+		this.server.emit("value", tempValue)
+		LOG.info(this, "Humidite", [tempValue.mac, tempValue.value, frequenceTemp])
+		this.lastDateValues[mac] = now
+	}
+}
+
+
+/**
+ * Called by the data event handler when data arrives from wind speed & direction
+ * sensors (packet type 0x56).
+ */
+RFXCom.prototype.windHandler = function(data, packetType) {
+	var frequenceTemp = this.server.frequence('anemometre')
+	var now = new Date()
+	var mac = "wind_" + this.dumpHex(data.slice(2, 4), false).join("")
+	
+	if (this.checkFrequence(mac, now, frequenceTemp)) {
+		var tempValue = {
+			implClass: this.server.deviceClass('anemometre'),
+			mac: mac,
+			value: ((data[8]*256 + data[9])/10 * 3.6) + "", // m/s => en km/h (ie * 3.6)
+			metavalues: {
+				battery: {
+					label: 'Batterie',
+					value: (data[14] & 0x0f) + ""
+				},
+				signal: {
+					label: 'Signal',
+					value: ((data[14] >> 4) & 0xf) + ""
+				},
+				direction: {
+					label: 'Direction',
+					value: (data[4]*256 + data[5]) + ""
+				}
+			}
+		}
+		
+		this.server.emit("value", tempValue)
+		LOG.info(this, "Anemometre", [tempValue.mac, tempValue.value, frequenceTemp])
+		this.lastDateValues[mac] = now
 	}
 }
 

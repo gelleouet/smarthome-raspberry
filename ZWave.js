@@ -108,10 +108,6 @@ ZWave.prototype.init = function() {
 		device.nodes[nodeid]['productinfo'] = nodeinfo
 		LOG.info(device, "node ready " + nodeid, nodeinfo);
 		device.sendDeviceValues(nodeid)
-		
-		// activation du polling sur les value de type command
-		device.zwave.enablePoll(nodeid, COMMAND_CLASS_SWITCH_BINARY)
-		device.zwave.enablePoll(nodeid, COMMAND_CLASS_SWITCH_MULTILEVEL)
 	});
 	
 	this.zwave.on('node naming', function(nodeid, nodeinfo) {
@@ -148,6 +144,12 @@ ZWave.prototype.init = function() {
 	
 	this.zwave.on('value added', function(nodeid, comclass, value) {
 		device.nodes[nodeid][value.value_id] = value
+		
+		// activation du polling sur certaines command class
+		if (value.class_id == COMMAND_CLASS_SWITCH_BINARY || value.class_id == COMMAND_CLASS_SWITCH_MULTILEVEL) {
+			device.zwave.enablePoll(value.node_id, value.class_id, value.instance, value.index)
+		}
+		
 		LOG.info(device, "Value added", value)
 	});
 	
@@ -167,7 +169,7 @@ ZWave.prototype.init = function() {
 ZWave.prototype.free = function() {
 	LOG.info(this, "Free")
 	if (this.zwave) {
-		this.zwave.disconnect();
+		this.zwave.disconnect(this.credentials.zwavePort);
 	}
 };
 

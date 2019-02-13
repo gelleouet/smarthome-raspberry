@@ -8,7 +8,18 @@ Prend en charge :
 * Téléinfo EDF : permet de brancher son compteur EDF via le téléinfo pour gérer sa consommation électrique
 * Arduino : sur un port série permet de compléter le port GPIO pour avoir plus d'entrées/sorties numériques. L'arduino gère mieux les interruptions temps réel et permet aussi de la brancher sur une carte relai (ex : [sainsmart](http://www.sainsmart.com/arduino/arduino-components.html))
 * ZWave : permet via un dongle USB de connecter des périphériques ZWave avec la librairie [OpenZwave](http://www.openzwave.com/)
+* RFXcom
 
 ### Fonctionnement
 
 L'agent se connecte après une phase d'authentification à un websocket sur l'application [smarthome](https://www.jdevops.com/smarthome). Ce websocket permet de recevoir ou d'envoyer en temps réel les infos au serveur domotique.
+
+
+### Windows
+
+Pour tester et installer sous Windows  
+`npm install --global --production windows-build-tools`  
+
+
+
+

@@ -78,12 +78,11 @@ TeleInfo.prototype.init = function() {
 				device.object = null;
 			} else {
 				device.parser.on('data', function(data) {
-					try {
-						device.onData(data);
-					} catch(ex) {
-						console.log(ex)
-					}
+					var values = device.onData(data)
 					
+					if (values != null) {
+						device.emit('teleinfo', values)
+					}
 				});
 				device.object.on('close', function(error) {
 					LOG.info(device, 'Serial port closed !', error);
@@ -112,6 +111,7 @@ TeleInfo.prototype.init = function() {
 TeleInfo.prototype.onData = function(data) {
 	var lignes = data.split('\r\n');
 	var values = {};
+	var returnValues = null
 	var now = new Date();
 	var timer = now.getTime() - this.lastRead.getTime();
 	var isModeTrace = this.isModeTrace()
@@ -126,6 +126,10 @@ TeleInfo.prototype.onData = function(data) {
 	// trame complète, on envoi un message au serveur
 	if (values.adco && values.motdetat && values.iinst && (values.base || values.hchc || values.hchp)) {
 		var adps = values.adps.value != "0" && (timer >= TELEINFO_ADPS_TIMER);
+		
+		// envoi d'un message depuis l'objet (et non pas le serveur central) avec la trame teleinfo
+		// utile si des drivers internes ont besoin de cette info (ex : ecs)
+		returnValues = values
 		
 		// on n'envoit le message que tous les X intervalles ou au 1er init (starting)
 		// ou si adps signalé tous les Y intervalles
@@ -162,6 +166,8 @@ TeleInfo.prototype.onData = function(data) {
 		LOG.error(this, "TIC trame incomplete", values)
 		this.lastRead = now;
 	}
+	
+	return returnValues
 }
 
 
