@@ -169,11 +169,9 @@ Websocket.prototype.credential = function() {
 		
 		if (network.eth0 || network.wlan0) {
 			this.address = network.eth0 ? network.eth0[0].address : network.wlan0[0].address;
-			LOG.info(this, 'Find network interface', this.address);
 			
 			// pas d'info mac sur nodejs v0.10. donc il faut le rajouter dans les credentials
 			if (!this.mac) {
-				LOG.info(this, 'No mac from credential. Try get it from network...');
 				this.mac = network.eth0 ? network.eth0[0].mac : network.wlan0[0].mac;
 			}
 			
@@ -327,6 +325,49 @@ Websocket.prototype.websocket = function() {
 		// il manque des infos, il faut récupérer le token
 		websocket.close();
 	}
+}
+
+
+/**
+ * Envoi d'un message non plus par le websocket
+ * mais par un simple post sur le serveur
+ * A utiliser en secours si le websocket est fermé
+ * 
+ * @param message
+ * @param onSendCallback
+ */
+Websocket.prototype.httpPostMessage = function(message, onSendCallback) {
+	if (this.credential()) {
+		var options = {
+			url: this.applicationHost + '/device/publicChangeValueFromAgent',
+			method: 'POST',
+			timeout: HTTP_TIMEOUT,
+			json: true,
+			body: {
+				username: this.username,
+				applicationKey: this.applicationKey,
+				mac: this.mac,
+				privateIp: this.address,
+				agentModel: this.agentModel,
+				data: message
+			}
+		};
+			
+		function subscribeCallBack(error, response, body) {
+			if (onSendCallback) {
+				if (response && response.statusCode == 200) {
+					onSendCallback(null, message);
+				} else {
+					onSendCallback("HTTP POST error", message);
+				}
+			}
+		};
+		
+		request(options, subscribeCallBack);
+	} else if (onSendCallback) {
+		onSendCallback('Required credential !', message);
+	}
+	
 }
 
 

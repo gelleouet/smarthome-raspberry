@@ -21,12 +21,31 @@ var offline = Offline.newInstance();
 offline.onProcessMessage = onOfflineMessage;
 
 
-//lancement du websocket avec son listener pour la gestion des messages
+//lancement du websocket principal avec son listener pour la gestion des messages
 websocket.onMessage = onWebsocketMessage;
 websocket.onConnected = onWebsocketConnected;
 websocket.onClosed = onWebsocketClosed;
 websocket.credentials = config.credentials;
 websocket.listen();
+
+// référence les consumers (serveurs référencés pour capter les données)
+var consumers = new Array()
+
+if (config.credentials.consumers) {
+	for (var idx=0; idx<config.credentials.consumers.length; idx++) {
+		console.log("Init consumer...", config.credentials.consumers[idx].applicationHost)
+		var consumer = require('./Websocket').newInstance()
+		consumer.credentials = {
+			username: config.credentials.consumers[idx].username,
+			applicationKey: config.credentials.consumers[idx].applicationKey,
+			applicationHost: config.credentials.consumers[idx].applicationHost,
+			agentModel: config.credentials.agentModel,
+			mac: config.credentials.mac
+			
+		}
+		consumers.push(consumer)
+	}
+}
 
 
 // On fournit un listener pour le changement des valeurs
@@ -55,6 +74,11 @@ function onDeviceMessage(message) {
 			offline.add(message)
 		}
 	});
+	
+	// diffuse les données aux consumers
+	for (var idx=0; idx<consumers.length; idx++) {
+		consumers[idx].httpPostMessage(message)
+	}
 }
 
 
