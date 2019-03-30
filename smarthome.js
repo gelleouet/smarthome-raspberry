@@ -76,8 +76,10 @@ function onDeviceMessage(message) {
 	});
 	
 	// diffuse les données aux consumers
-	for (var idx=0; idx<consumers.length; idx++) {
-		consumers[idx].httpPostMessage(message)
+	if (message.header == 'deviceValue') {
+		for (var idx=0; idx<consumers.length; idx++) {
+			consumers[idx].httpPostMessage(message)
+		}
 	}
 }
 
