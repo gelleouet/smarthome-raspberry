@@ -15,8 +15,9 @@ var ONEWIRE_PATH = '/sys/bus/w1/devices/';
 var ONEWIRE_FAMILY_TEMPERATURE = '28';
 
 
-///etc/modprobe.d/
-//Vous écrivez à l’intérieur « options wire max_slave_count=20″
+// créer un fichier /etc/modprobe.d/wire.conf
+// Vous écrivez à l’intérieur :
+// options wire max_slave_count=20
 
 /**
  * Constructor

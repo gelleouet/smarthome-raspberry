@@ -42,6 +42,7 @@ var RFXCom = function RFXCom(server) {
 	
 	this.handlers = {
 		0x01: "statusMessageHandler",
+		0x11: "lighting2Handler",
 		0x50: "tempHandler",
 		0x51: "humidityHandler",
 		0x52: "temphumidityHandler",
@@ -606,6 +607,42 @@ RFXCom.prototype.cartelectronicHandler = function(data, packetType) {
 			this.lastValues[mac] = value
         }
 	}
+}
+
+
+/**
+ * Called by the data event handler when data arrives from a HomeEasy
+ * light control device (packet type 0x11).
+ */
+RFXCom.prototype.lighting2Handler = function(data, packetType) {
+	var idBytes = data.slice(2, 6)
+	idBytes[0] &= ~0xfc;
+	var unitCode = data[6]
+    var mac = this.dumpHex(idBytes, false).join("") + "_" + unitCode
+    var commands = {
+        0: "Off",
+        1: "On",
+        2: "Set Level",
+        3: "Group Off",
+        4: "Group On",
+        5: "Set Group Level"
+    }
+
+	var message = {
+		implClass: this.server.deviceClass('capteur'),
+		mac: mac,
+		value: data[7] + "",
+		metavalues: {
+			signal: {
+				label: 'Signal',
+				value: data[8] + ""
+			}
+		}
+	}
+	
+	this.server.emit("value", message)
+	LOG.info(this, "Chacon - DiO", [message.mac, message.value])
+	this.lastDateValues[mac] = now
 }
 
 
