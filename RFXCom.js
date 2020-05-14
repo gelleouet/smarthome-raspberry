@@ -627,6 +627,7 @@ RFXCom.prototype.lighting2Handler = function(data, packetType) {
         4: "Group On",
         5: "Set Group Level"
     }
+	var now = new Date()
 
 	var message = {
 		implClass: this.server.deviceClass('capteur'),
