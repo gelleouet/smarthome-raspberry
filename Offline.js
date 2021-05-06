@@ -39,7 +39,7 @@ var Offline = function Offline() {
 	}
 	
 	if (loki) {
-		this.lokidb = new loki('/home/pi/smarthomedb.json', {
+		this.lokidb = new loki('/var/tmp/smarthomedb.json', {
 			autosave: true,
 			autosaveInterval: 5000
 		})
