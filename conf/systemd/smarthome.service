@@ -1,0 +1,14 @@
+[Unit]
+Description=SMARTHOME
+After=network.target
+
+[Service]
+Environment=LD_LIBRARY_PATH=/opt/openzwave
+WorkingDirectory=/opt/smarthome
+ExecStart=/usr/local/bin/node smarthome.js
+ExecStop=/bin/kill -15 $MAINPID
+Restart=on-failure
+RestartSec=15s
+
+[Install]
+WantedBy=multi-user.target
